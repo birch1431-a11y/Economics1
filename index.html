@@ -1,0 +1,72 @@
+GitHub Pages<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Econ Dash</title>
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; padding: 20px; margin: 0; }
+        .header { text-align: center; color: #00ff88; font-size: 1.2rem; font-weight: bold; margin-bottom: 20px; cursor: pointer; }
+        .category { color: #888; font-size: 0.9rem; font-weight: bold; margin-top: 20px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .item-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #1f1f1f; }
+        .value { font-weight: bold; color: #ffffff; }
+        #status-msg { text-align: center; font-size: 0.8rem; color: #666; margin-top: 30px; }
+    </style>
+</head>
+<body>
+
+    <div class="header" onclick="resetKey()">📈 MY ECON DASHBOARD</div>
+
+    <div class="category">외환 (Forex)</div>
+    <div class="item-row"><span>원/달러 (KRW)</span><span class="value" id="USD/KRW">--</span></div>
+    <div class="item-row"><span>달러/엔 (JPY)</span><span class="value" id="USD/JPY">--</span></div>
+
+    <div class="category">증시 (ETF)</div>
+    <div class="item-row"><span>S&P 500 (SPY)</span><span class="value" id="SPY">--</span></div>
+    <div class="item-row"><span>NASDAQ (QQQ)</span><span class="value" id="QQQ">--</span></div>
+
+    <div class="category">실물 & 코인</div>
+    <div class="item-row"><span>GOLD ($/oz)</span><span class="value" id="GOLD">--</span></div>
+    <div class="item-row"><span>BTC ($)</span><span class="value" id="BTC/USD">--</span></div>
+
+    <div id="status-msg">화면 클릭 시 API 키 입력창이 뜹니다.</div>
+
+    <script>
+        const symbols = ["USD/KRW", "USD/JPY", "SPY", "QQQ", "GOLD", "BTC/USD"];
+
+        async function getData() {
+            let key = localStorage.getItem('econ_key');
+            if (!key) {
+                key = prompt("Twelve Data API 키를 입력하세요:");
+                if (key) localStorage.setItem('econ_key', key.trim());
+                else return;
+            }
+
+            document.getElementById('status-msg').innerText = "업데이트 중...";
+
+            for (let sym of symbols) {
+                try {
+                    const res = await fetch(`https://api.twelvedata.com/quote?symbol=${sym}&apikey=${key}`);
+                    const data = await res.json();
+                    if (data.close) {
+                        let val = parseFloat(data.close);
+                        document.getElementById(sym).innerText = val.toLocaleString();
+                    }
+                } catch (e) { console.error(e); }
+                // 무료 키 속도 제한 방지
+                await new Promise(r => setTimeout(r, 500));
+            }
+            document.getElementById('status-msg').innerText = "완료: " + new Date().toLocaleTimeString();
+        }
+
+        function resetKey() {
+            localStorage.removeItem('econ_key');
+            location.reload();
+        }
+
+        window.onload = getData;
+        // 상태메시지 클릭 시에도 키 입력 가능하게
+        document.getElementById('status-msg').onclick = getData;
+    </script>
+</body>
+</html>
