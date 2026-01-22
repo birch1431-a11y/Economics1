@@ -99,23 +99,16 @@
                     const el = document.getElementById(id);
 
                     if (el) {
-                        // 1. 소수점 3자리 적용 대상: 실버, 리플
+                        // 자릿수 강제 지정 로직
                         if (id === "SILVER" || id === "XRP") {
                             el.innerText = cur.toFixed(3);
-                        }
-                        // 2. 소수점 2자리 적용 대상: 나스닥, 국채금리(3종), 골드, 플래티넘
-                        else if (id === "NASDAQ" || id.includes("US") && !id.includes("MCAP") || id === "GOLD" || id === "PLATINUM") {
-                            if (id.includes("US")) {
-                                el.innerText = cur.toFixed(2) + "%"; // 국채금리는 % 포함 2자리
-                            } else {
-                                el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                            }
-                        }
-                        // 3. 기타 기본 처리
-                        else if (cur > 100) {
+                        } else if (id === "NASDAQ" || id === "GOLD" || id === "PLATINUM") {
                             el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                        }
-                        else {
+                        } else if (id === "US30Y" || id === "US10Y" || id === "US2Y") {
+                            el.innerText = cur.toFixed(2) + "%";
+                        } else if (cur > 1000) {
+                            el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                        } else {
                             el.innerText = cur.toFixed(2);
                         }
                         
@@ -171,7 +164,7 @@
                 const s = live.y10-live.y2, sp = live.y10p-live.y2p;
                 const el = document.getElementById("SPREAD");
                 if(el) { 
-                    el.innerText = s.toFixed(2) + "%p"; // 장단기 금리차 소수점 2자리 고정
+                    el.innerText = s.toFixed(2) + "%p"; 
                     formatChange(s, sp, "SPREAD"); 
                     el.className = "value " + (s<0?"status-danger":"status-safe"); 
                 }
@@ -182,4 +175,42 @@
             await getYahoo("VTI", "VTI_HIDDEN");
             const jobs = [
                 ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
-                ["^KS11","KOSPI"], ["
+                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
+                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
+                ["BTC-USD","BTC"], ["ETH-USD","ETH"], ["XRP-USD","XRP"], ["^VIX","VIX"]
+            ];
+            jobs.forEach(j => getYahoo(j[0], j[1]));
+
+            const fx = ["USD/KRW","JPY/KRW","EUR/KRW","CNY/KRW"];
+            for (const s of fx) {
+                fetch(`https://api.twelvedata.com/quote?symbol=${s}&apikey=${MY_API_KEY}`)
+                .then(r=>r.json()).then(d=>{
+                    if(d && d.close){
+                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
+                        const el = document.getElementById(s);
+                        if(el) {
+                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, s);
+                            if(s==="USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                        }
+                    }
+                }).catch(e => console.error(s + " 환율 로드 실패"));
+                await new Promise(r => setTimeout(r, 500));
+            }
+
+            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
+                if(d && d.chart && d.chart.result) {
+                    const v = d.chart.result[0].meta.regularMarketPrice;
+                    const el = document.getElementById("SHILLER");
+                    if(el) { 
+                        el.innerText = v.toFixed(1); 
+                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
+                    }
+                }
+            });
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
