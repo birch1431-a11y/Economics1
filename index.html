@@ -86,7 +86,10 @@
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
             const cEl = document.getElementById(id + "-c");
-            if(cEl) cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
+            if(cEl) {
+                // 변동폭 숫자 자릿수도 보기 편하게 2자리로 통일
+                cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
+            }
         }
 
         async function getYahoo(ticker, id) {
@@ -99,19 +102,19 @@
                     const el = document.getElementById(id);
 
                     if (el) {
-                        // 자릿수 강제 지정 로직
+                        // 자릿수 처리 메인 로직
+                        let displayVal = "";
+                        
                         if (id === "SILVER" || id === "XRP") {
-                            el.innerText = cur.toFixed(3);
-                        } else if (id === "NASDAQ" || id === "GOLD" || id === "PLATINUM") {
-                            el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                            displayVal = cur.toFixed(3); // 실버, 리플은 3자리
                         } else if (id === "US30Y" || id === "US10Y" || id === "US2Y") {
-                            el.innerText = cur.toFixed(2) + "%";
-                        } else if (cur > 1000) {
-                            el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                            displayVal = cur.toFixed(2) + "%"; // 국채금리 2자리
                         } else {
-                            el.innerText = cur.toFixed(2);
+                            // 나스닥, 골드 등 나머지는 모두 콤마 포함 2자리
+                            displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
                         }
                         
+                        el.innerText = displayVal;
                         formatChange(cur, prev, id);
 
                         if (id === "VIX") {
@@ -164,7 +167,7 @@
                 const s = live.y10-live.y2, sp = live.y10p-live.y2p;
                 const el = document.getElementById("SPREAD");
                 if(el) { 
-                    el.innerText = s.toFixed(2) + "%p"; 
+                    el.innerText = s.toFixed(2) + "%p"; // 장단기 금리차 2자리 고정
                     formatChange(s, sp, "SPREAD"); 
                     el.className = "value " + (s<0?"status-danger":"status-safe"); 
                 }
@@ -189,6 +192,7 @@
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(s);
                         if(el) {
+                            // 환율 소수점 2자리 강제 고정
                             el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, s);
                             if(s==="USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
