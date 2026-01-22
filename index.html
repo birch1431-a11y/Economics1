@@ -15,7 +15,6 @@
         .value { font-size: 1rem; font-weight: 600; font-family: 'Roboto Mono', monospace; color: #ffffff; display: block; }
         .change { font-size: 0.75rem; font-weight: 400; margin-top: 2px; }
         .up { color: #ff4444; } .down { color: #4488ff; }
-        /* VIX 및 지표 상태 색상 */
         .status-danger { color: #ff4444 !important; } 
         .status-warning { color: #ffbb33 !important; } 
         .status-safe { color: #00ff88 !important; }
@@ -87,8 +86,100 @@
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
             const cEl = document.getElementById(id + "-c");
-            // 변동폭 표시는 가독성을 위해 기본 2자리 유지
-            if(cEl) cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2})} (${pct}%)</span>`;
+            if(cEl) cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
         }
 
         async function getYahoo(ticker, id) {
+            try {
+                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
+                if (data && data.chart && data.chart.result) {
+                    const meta = data.chart.result[0].meta;
+                    const cur = meta.regularMarketPrice;
+                    const prev = meta.previousClose;
+                    const el = document.getElementById(id);
+
+                    if (el) {
+                        // 1. 소수점 3자리 적용 대상: 실버, 리플
+                        if (id === "SILVER" || id === "XRP") {
+                            el.innerText = cur.toFixed(3);
+                        }
+                        // 2. 소수점 2자리 적용 대상: 나스닥, 국채금리(3종), 골드, 플래티넘
+                        else if (id === "NASDAQ" || id.includes("US") && !id.includes("MCAP") || id === "GOLD" || id === "PLATINUM") {
+                            if (id.includes("US")) {
+                                el.innerText = cur.toFixed(2) + "%"; // 국채금리는 % 포함 2자리
+                            } else {
+                                el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                            }
+                        }
+                        // 3. 기타 기본 처리
+                        else if (cur > 100) {
+                            el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                        }
+                        else {
+                            el.innerText = cur.toFixed(2);
+                        }
+                        
+                        formatChange(cur, prev, id);
+
+                        if (id === "VIX") {
+                            if (cur >= 30) el.className = "value status-danger";
+                            else if (cur >= 20) el.className = "value status-warning";
+                            else el.className = "value status-safe";
+                        }
+                    }
+
+                    if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
+                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
+                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
+                    if(ticker === "VTI") updateUsMcap(cur, prev);
+                    updateKospiUsd();
+                }
+            } catch (err) { console.error(id + " 로드 실패"); }
+        }
+
+        function updateUsMcap(c, p) {
+            const m = BASE_US_MCAP * (c/p);
+            const el = document.getElementById("US_MCAP");
+            if(el) {
+                el.innerText = m.toFixed(2);
+                formatChange(m, BASE_US_MCAP, "US_MCAP");
+                const bft = (m/27.94*100).toFixed(1);
+                const bEl = document.getElementById("BUFFETT");
+                if(bEl) { 
+                    bEl.innerText = bft + "%"; 
+                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
+                }
+            }
+        }
+
+        function updateKrMcap(c, p) {
+            const m = BASE_KR_MCAP * (c/p);
+            const el = document.getElementById("KR_MCAP");
+            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+        }
+
+        function updateKospiUsd() {
+            if(live.k && live.u) {
+                const c = live.k/live.u, p = live.kp/live.up;
+                const el = document.getElementById("KOSPI_USD");
+                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
+            }
+        }
+
+        function updateSpread() {
+            if(live.y10 && live.y2) {
+                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
+                const el = document.getElementById("SPREAD");
+                if(el) { 
+                    el.innerText = s.toFixed(2) + "%p"; // 장단기 금리차 소수점 2자리 고정
+                    formatChange(s, sp, "SPREAD"); 
+                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
+                }
+            }
+        }
+
+        async function init() {
+            await getYahoo("VTI", "VTI_HIDDEN");
+            const jobs = [
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
+                ["^KS11","KOSPI"], ["
