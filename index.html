@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🔄 글로벌 경제 상황판</title>
+    <title>🔄 글로벌 경제 상황판 (안정화 버전)</title>
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, sans-serif; padding: 15px; margin: 0; }
         .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 25px; color: #c5a059; cursor: pointer; padding: 10px; border: 1px solid #444; border-radius: 8px; }
@@ -73,15 +73,7 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        async function fetchData(url) {
-            // AllOrigins 프록시 사용 (contents 속성으로 데이터가 들어옴)
-            const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-            try {
-                const res = await fetch(proxy);
-                const data = await res.json();
-                return JSON.parse(data.contents);
-            } catch (e) { return null; }
-        }
+        const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
         function formatChange(c, p, id) {
             const diff = c - p, pct = (diff/p*100).toFixed(2);
@@ -93,6 +85,75 @@
             }
         }
 
-        async function getYahoo(ticker, id) {
+        async function getDirectData(symbol, id) {
             try {
-                const data = await fetchData(`
+                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${MY_API_KEY}`);
+                const d = await res.json();
+                
+                if (d && d.close) {
+                    const cur = parseFloat(d.close);
+                    const prev = parseFloat(d.previous_close) || cur;
+                    const el = document.getElementById(id);
+                    if (el) {
+                        let dv = "";
+                        if (id === "SILVER" || id === "XRP") dv = cur.toFixed(3);
+                        else if (id.includes("US") && id.includes("Y")) dv = cur.toFixed(2) + "%";
+                        else dv = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                        el.innerText = dv;
+                        formatChange(cur, prev, id);
+                        
+                        // 지표 연동 로직
+                        if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
+                        if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
+                        if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
+                        if(symbol === "VTI") updateUsMcap(cur, prev);
+                        if(id === "USD/KRW") { live.u=cur; live.up=prev; }
+                        updateKospiUsd();
+                        
+                        if (id === "VIX") {
+                            el.className = "value " + (cur >= 30 ? "status-danger" : cur >= 20 ? "status-warning" : "status-safe");
+                        }
+                    }
+                }
+            } catch (e) { console.error(id + " 실패"); }
+        }
+
+        function updateUsMcap(c, p) {
+            const m = BASE_US_MCAP * (c/p);
+            const el = document.getElementById("US_MCAP");
+            if(el) { el.innerText = m.toFixed(2); formatChange(m, BASE_US_MCAP, "US_MCAP"); }
+        }
+        function updateKrMcap(c, p) {
+            const m = BASE_KR_MCAP * (c/p);
+            const el = document.getElementById("KR_MCAP");
+            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+        }
+        function updateKospiUsd() {
+            if(live.k && live.u) {
+                const c = live.k/live.u, p = live.kp/live.up;
+                const el = document.getElementById("KOSPI_USD");
+                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
+            }
+        }
+        function updateSpread() {
+            if(live.y10 && live.y2) {
+                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
+                const el = document.getElementById("SPREAD");
+                if(el) { el.innerText = s.toFixed(2) + "%p"; formatChange(s, sp, "SPREAD"); }
+            }
+        }
+
+        async function init() {
+            // Twelve Data 호환 심볼 리스트
+            const list = [
+                ["DXY", "DXY"], ["USD/KRW", "USD/KRW"], ["JPY/KRW", "JPY/KRW"], ["EUR/KRW", "EUR/KRW"], ["CNY/KRW", "CNY/KRW"],
+                ["VTI", "US_MCAP_BASE"], ["SPX", "SP500"], ["IXIC", "NASDAQ"], ["DJI", "DOW"],
+                ["KOSPI", "KOSPI"], ["KOSDAQ", "KOSDAQ"], ["TNX", "US10Y"], ["TYX", "US30Y"], ["IRX", "US2Y"],
+                ["XAU/USD", "GOLD"], ["XAG/USD", "SILVER"], ["HG=F", "COPPER"], ["BTC/USD", "BTC"], ["ETH/USD", "ETH"], ["XRP/USD", "XRP"], ["VIX", "VIX"]
+            ];
+
+            // 1분당 8개 제한을 피하기 위한 정교한 스케줄링 (8초마다 5개씩)
+            for(let i=0; i < list.length; i++) {
+                getDirectData(list[i][0], list[i][1]);
+                if ((i + 1) % 5 === 0) {
+                    document.getElementById('status-msg').innerText = `데이터 수신
