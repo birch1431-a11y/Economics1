@@ -3,79 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>📊 글로벌 실시간 상황판</title>
+    <title>🔄 경제 상황판 (재시작 버전)</title>
     <style>
-        body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, sans-serif; padding: 10px; margin: 0; }
-        .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin: 15px 0; color: #c5a059; }
-        .category { margin-top: 25px; font-size: 0.95rem; color: #ffffff; font-weight: bold; border-left: 3px solid #c5a059; padding-left: 10px; margin-bottom: 10px; }
-        .widget-wrapper { margin-bottom: 10px; border-radius: 8px; overflow: hidden; background: #1e1e1e; border: 1px solid #333; }
-        .footer { text-align: center; font-size: 0.7rem; color: #444; margin-top: 30px; border-top: 1px solid #222; padding-top: 15px; }
+        body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, sans-serif; padding: 15px; margin: 0; }
+        .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 25px; color: #c5a059; border-bottom: 1px solid #333; padding-bottom: 15px; }
+        .category { margin-top: 20px; font-size: 0.95rem; color: #ffffff; font-weight: bold; border-left: 3px solid #c5a059; padding-left: 10px; }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; border-bottom: 1px solid #222; }
+        .label { font-size: 0.95rem; color: #bbbbbb; } 
+        .val-container { text-align: right; }
+        .value { font-size: 1rem; font-weight: 600; font-family: 'Roboto Mono', monospace; }
+        .change { font-size: 0.8rem; margin-top: 2px; }
+        .up { color: #ff4444; } .down { color: #4488ff; }
+        #status { text-align: center; font-size: 0.7rem; color: #555; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <div class="header">📊 실시간 마켓 데이터</div>
+    <div class="header" onclick="location.reload()">📊 실시간 경제 상황판</div>
 
-    <div class="category">외환 및 원자재</div>
-    <div class="widget-wrapper">
-        <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-tickers.js" async>
-            {
-              "symbols": [
-                { "proName": "FX_IDC:USDKRW", "title": "원/달러 환율" },
-                { "proName": "FX_IDC:JPYKRW", "title": "원/엔 환율" },
-                { "proName": "OANDA:XAUUSD", "title": "국제 금 시세" }
-              ],
-              "colorTheme": "dark",
-              "isTransparent": true,
-              "showSymbolLogo": true,
-              "locale": "ko"
-            }
-            </script>
+    <div class="category">외환 / 코인</div>
+    <div id="section-fx">
         </div>
-    </div>
 
-    <div class="category">글로벌 증시 지수</div>
-    <div class="widget-wrapper">
-        <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-tickers.js" async>
-            {
-              "symbols": [
-                { "proName": "FOREXCOM:SPX500", "title": "S&P 500" },
-                { "proName": "FOREXCOM:NAS100", "title": "나스닥 100" },
-                { "proName": "KRX:KOSPI", "title": "코스피 (KOSPI)" },
-                { "proName": "KRX:KOSDAQ", "title": "코스닥 (KOSDAQ)" }
-              ],
-              "colorTheme": "dark",
-              "isTransparent": true,
-              "showSymbolLogo": true,
-              "locale": "ko"
-            }
-            </script>
+    <div class="category">증시 / 지수 (대체)</div>
+    <div id="section-stock">
         </div>
-    </div>
 
-    <div class="category">가상자산 및 금리</div>
-    <div class="widget-wrapper">
-        <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-tickers.js" async>
-            {
-              "symbols": [
-                { "proName": "BINANCE:BTCUSDT", "title": "비트코인" },
-                { "proName": "TVC:US10Y", "title": "미 국채 10년물" },
-                { "proName": "TVC:VIX", "title": "변동성 지수(VIX)" }
-              ],
-              "colorTheme": "dark",
-              "isTransparent": true,
-              "showSymbolLogo": true,
-              "locale": "ko"
+    <div id="status">데이터 연결 중...</div>
+
+    <script>
+        const API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
+
+        // 1. 가져올 항목 정의
+        const items = [
+            { label: "원/달러 환율", symbol: "USD/KRW", target: "section-fx" },
+            { label: "비트코인($)", symbol: "BTC/USD", target: "section-fx" },
+            { label: "S&P 500 (ETF)", symbol: "SPY", target: "section-stock" },
+            { label: "나스닥 (ETF)", symbol: "QQQ", target: "section-stock" },
+            { label: "미 국채 10년", symbol: "TNX", target: "section-stock" }
+        ];
+
+        // 2. 화면 틀 미리 만들기
+        function init() {
+            items.forEach(item => {
+                const html = `
+                    <div class="item-row">
+                        <span class="label">${item.label}</span>
+                        <div class="val-container">
+                            <div class="value" id="val-${item.symbol}">--</div>
+                            <div class="change" id="chg-${item.symbol}">--</div>
+                        </div>
+                    </div>`;
+                document.getElementById(item.target).innerHTML += html;
+            });
+        }
+
+        // 3. 데이터 가져오기 (하나씩 순서대로)
+        async function update() {
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                try {
+                    const res = await fetch(`https://api.twelvedata.com/quote?symbol=${item.symbol}&apikey=${API_KEY}`);
+                    const data = await res.json();
+
+                    if (data.close) {
+                        const cur = parseFloat(data.close);
+                        const prev = parseFloat(data.previous_close);
+                        const diff = cur - prev;
+                        const pct = ((diff / prev) * 100).toFixed(2);
+
+                        // 값 업데이트
+                        document.getElementById(`val-${item.symbol}`).innerText = cur.toLocaleString(undefined, {minimumFractionDigits: 2});
+                        
+                        // 등락 업데이트
+                        const chgEl = document.getElementById(`chg-${item.symbol}`);
+                        const sign = diff > 0 ? "▲" : (diff < 0 ? "▼" : "");
+                        chgEl.className = "change " + (diff > 0 ? "up" : "down");
+                        chgEl.innerText = `${sign} ${Math.abs(diff).toFixed(2)} (${pct}%)`;
+                    }
+                } catch (e) {
+                    console.log(item.symbol + " 실패");
+                }
+                // 무료 키 제한을 피해 8초 대기
+                document.getElementById('status').innerText = `수신 중 (${i+1}/${items.length})`;
+                await new Promise(r => setTimeout(r, 8500));
             }
-            </script>
-        </div>
-    </div>
+            document.getElementById('status').innerText = "업데이트 완료: " + new Date().toLocaleTimeString();
+        }
 
-    <div class="footer">데이터 제공: TradingView<br>2026 Developed by S.K. Chun</div>
+        window.onload = () => {
+            init();
+            update();
+        };
+    </script>
 </body>
 </html>
