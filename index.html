@@ -3,105 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🔄 글로벌 경제 상황판 (정밀 복구)</title>
+    <title>🔄 글로벌 경제 상황판 (구글 엔진)</title>
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, sans-serif; padding: 15px; margin: 0; }
-        .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 25px; color: #c5a059; border: 1px solid #444; border-radius: 8px; padding: 10px; }
-        .category { margin-top: 25px; font-size: 0.95rem; color: #ffffff; font-weight: bold; }
-        .hr-short { border: 0; border-top: 2px solid #c5a059; width: 30px; margin: 5px 0 10px 0; }
-        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; border-bottom: 1px solid #222; }
-        .label { font-size: 0.95rem; color: #bbbbbb; } 
-        .val-container { text-align: right; }
-        .value { font-size: 1rem; font-weight: 600; font-family: 'Roboto Mono', monospace; color: #ffffff; }
-        .change { font-size: 0.75rem; margin-top: 2px; font-weight: bold; }
-        .up { color: #ff4444; } .down { color: #4488ff; }
-        .status-msg { text-align: center; font-size: 0.7rem; color: #555; margin-top: 20px; }
+        .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 20px; color: #c5a059; border: 1px solid #444; border-radius: 8px; padding: 10px; }
+        .category { margin-top: 20px; font-size: 0.95rem; color: #ffffff; font-weight: bold; border-left: 3px solid #c5a059; padding-left: 8px; margin-bottom: 10px; }
+        .widget-container { margin-bottom: 15px; border-radius: 12px; overflow: hidden; background: #1e1e1e; border: 1px solid #333; }
+        iframe { width: 100%; height: 80px; border: none; overflow: hidden; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .footer { text-align: center; font-size: 0.7rem; color: #444; margin-top: 30px; border-top: 1px solid #222; padding-top: 15px; }
+        /* 클릭 시 구글로 바로 이동하게 만드는 레이어 */
+        .overlay-link { position: relative; display: block; text-decoration: none; color: inherit; }
     </style>
 </head>
 <body>
-    <div class="header" onclick="location.reload()">🔄 실시간 경제 상황판</div>
+    <div class="header">📊 실시간 글로벌 경제 상황판</div>
 
-    <div class="category">외환/코인</div><hr class="hr-short">
-    <div id="fx-section"></div>
+    <div class="category">외환 / 코인</div>
+    <div class="grid-2">
+        <div class="widget-container">
+            <iframe src="https://www.google.com/search?igu=1&q=USDKRW"></iframe>
+        </div>
+        <div class="widget-container">
+            <iframe src="https://www.google.com/search?igu=1&q=BTCUSD"></iframe>
+        </div>
+    </div>
 
-    <div class="category">주요 증시/금리</div><hr class="hr-short">
-    <div id="stock-section"></div>
+    <div class="category">주요 증시 지수</div>
+    <div class="widget-container" style="height: 100px;">
+        <a href="https://www.google.com/search?q=S%26P500" target="_blank" class="overlay-link">
+            <div style="padding: 15px; text-align: center;">
+                <span style="color: #c5a059; font-weight: bold;">S&P 500 / NASDAQ / DOW</span><br>
+                <span style="font-size: 0.8rem; color: #888;">[터치하여 실시간 지수 및 등락 확인]</span>
+            </div>
+        </a>
+    </div>
 
-    <div class="status-msg" id="status-msg">데이터 수집을 시작합니다...</div>
-    <div style="text-align:center; font-size:0.6rem; color:#333; margin-top:30px;">2026 Developed by S.K. Chun</div>
+    <div class="category">KOSPI / 국내 증시</div>
+    <div class="widget-container">
+        <a href="https://www.google.com/search?q=KOSPI" target="_blank" class="overlay-link">
+            <div style="padding: 15px; text-align: center;">
+                <span style="color: #c5a059; font-weight: bold;">KOSPI / KOSDAQ</span><br>
+                <span style="font-size: 0.8rem; color: #888;">[한국 시장 실시간 데이터 연결]</span>
+            </div>
+        </a>
+    </div>
 
-    <script>
-        const API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        
-        // 지수는 무료 API에서 막히므로 ETF로 대체하여 배율(factor) 적용
-        const fxItems = [
-            { l: "원/달러", s: "USD/KRW", factor: 1 },
-            { l: "원/엔", s: "JPY/KRW", factor: 1 },
-            { l: "비트코인($)", s: "BTC/USD", factor: 1 }
-        ];
+    <div class="category">채권 및 안전자산</div>
+    <div class="grid-2">
+        <a href="https://www.google.com/search?q=US10Y" target="_blank" class="widget-container" style="padding: 10px; text-align: center; text-decoration: none;">
+            <span style="font-size: 0.8rem; color: #bbb;">미 국채 10년</span>
+        </a>
+        <a href="https://www.google.com/search?q=GOLD" target="_blank" class="widget-container" style="padding: 10px; text-align: center; text-decoration: none;">
+            <span style="font-size: 0.8rem; color: #bbb;">국제 금 시세</span>
+        </a>
+    </div>
 
-        const stockItems = [
-            { l: "S&P 500", s: "SPY", factor: 10 },    // SPY 가격 * 10 ≒ S&P 500 지수
-            { l: "나스닥 100", s: "QQQ", factor: 1 },  // 나스닥 지수는 QQQ 가격으로 대체 표시
-            { l: "KOSPI (ETF)", s: "EWY", factor: 35 }, // 한국 지수 ETF 기반 환산
-            { l: "미 국채 10년", s: "TNX", factor: 0.1 } 
-        ];
-
-        function initLayout() {
-            document.getElementById('fx-section').innerHTML = fxItems.map(item => createRow(item)).join('');
-            document.getElementById('stock-section').innerHTML = stockItems.map(item => createRow(item)).join('');
-        }
-
-        function createRow(item) {
-            return `
-                <div class="item-row">
-                    <span class="label">${item.l}</span>
-                    <div class="val-container">
-                        <div class="value" id="val-${item.s}">--</div>
-                        <div class="change" id="chg-${item.s}"></div>
-                    </div>
-                </div>`;
-        }
-
-        async function updateData() {
-            const allItems = [...fxItems, ...stockItems];
-            for (let i = 0; i < allItems.length; i++) {
-                const item = allItems[i];
-                try {
-                    const res = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${API_KEY}`);
-                    const d = await res.json();
-                    
-                    if (d.close) {
-                        const cur = parseFloat(d.close) * item.factor;
-                        const prev = parseFloat(d.previous_close) * item.factor;
-                        const diff = cur - prev;
-                        const pct = (diff / prev * 100).toFixed(2);
-                        
-                        // 값 표시
-                        const valEl = document.getElementById(`val-${item.s}`);
-                        valEl.innerText = (item.s === "JPY/KRW") ? cur.toFixed(3) : cur.toLocaleString(undefined, {minimumFractionDigits: 2});
-
-                        // 등락 표시 (직접 계산)
-                        const chgEl = document.getElementById(`chg-${item.s}`);
-                        const sign = diff > 0 ? "▲" : (diff < 0 ? "▼" : "");
-                        const cls = diff > 0 ? "up" : (diff < 0 ? "down" : "");
-                        
-                        chgEl.className = "change " + cls;
-                        chgEl.innerText = `${sign} ${Math.abs(diff).toFixed(2)} (${pct}%)`;
-                    }
-                } catch (e) { console.error(item.l + " 실패"); }
-                
-                document.getElementById('status-msg').innerText = `업데이트 중 (${i+1}/${allItems.length})...`;
-                // API 한도 방지를 위해 요청 간격 유지 (8초)
-                await new Promise(r => setTimeout(r, 8500));
-            }
-            document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString();
-        }
-
-        window.onload = () => {
-            initLayout();
-            updateData();
-        };
-    </script>
+    <div class="footer">데이터 소스: Google Finance<br>2026 Developed by S.K. Chun</div>
 </body>
 </html>
