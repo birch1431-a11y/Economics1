@@ -51,4 +51,170 @@
     <div class="item-row"><span class="label">SILVER($/oz)</span><div class="val-container"><span class="value" id="SILVER">--</span><div class="change" id="SILVER-c">--</div></div></div>
     <div class="item-row"><span class="label">구리($/lb)</span><div class="val-container"><span class="value" id="COPPER">--</span><div class="change" id="COPPER-c">--</div></div></div>
     <div class="item-row"><span class="label">PLATINUM($/oz)</span><div class="val-container"><span class="value" id="PLATINUM">--</span><div class="change" id="PLATINUM-c">--</div></div></div>
-    <div class="item-
+    <div class="item-row"><span class="label">WTI유($/bbl)</span><div class="val-container"><span class="value" id="WTI">--</span><div class="change" id="WTI-c">--</div></div></div>
+
+    <div class="category">가상자산</div><hr class="hr-short">
+    <div class="item-row"><span class="label">BTC($)</span><div class="val-container"><span class="value" id="BTC">--</span><div class="change" id="BTC-c">--</div></div></div>
+    <div class="item-row"><span class="label">ETH($)</span><div class="val-container"><span class="value" id="ETH">--</span><div class="change" id="ETH-c">--</div></div></div>
+    <div class="item-row"><span class="label">XRP($)</span><div class="container"><span class="value" id="XRP">--</span><div class="change" id="XRP-c">--</div></div></div>
+
+    <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
+    <div class="item-row"><span class="label">VIX 지수</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
+    <div class="item-row"><span class="label">장단기 금리차</span><div class="val-container"><span class="value" id="SPREAD">--</span><div class="change" id="SPREAD-c">--</div></div></div>
+    <div class="item-row"><span class="label">버핏 지수</span><span class="value" id="BUFFETT">--</span></div>
+    <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
+
+    <div class="footer-copy">2026 Developed by <span style="color: #777; font-weight: 500;">S.K. Chun</span></div>
+    <div id="status-msg" style="text-align:center; font-size:0.7rem; color:#555; margin-bottom:30px;">데이터 연결 중...</div>
+
+    <script>
+        const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
+        const BASE_US_MCAP = 62.5; 
+        const BASE_KR_MCAP = 4660; 
+        let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
+
+        // [핵심] 차단 문제를 해결하는 가장 가벼운 프록시 함수
+        async function fetchData(url) {
+            try {
+                // corsproxy.io가 막혔을 때를 대비해 api.allorigins.win 사용
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                return JSON.parse(data.contents);
+            } catch (e) { return null; }
+        }
+
+        function formatChange(c, p, id) {
+            const diff = c - p, pct = (diff/p*100).toFixed(2);
+            const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
+            const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
+            const cEl = document.getElementById(id + "-c");
+            if(cEl) {
+                cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
+            }
+        }
+
+        async function getYahoo(ticker, id) {
+            try {
+                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
+                if (data && data.chart && data.chart.result) {
+                    const meta = data.chart.result[0].meta;
+                    const cur = meta.regularMarketPrice;
+                    const prev = meta.previousClose;
+                    const el = document.getElementById(id);
+
+                    if (el) {
+                        let displayVal = "";
+                        if (id === "SILVER" || id === "XRP") {
+                            displayVal = cur.toFixed(3);
+                        } else if (id === "US30Y" || id === "US10Y" || id === "US2Y") {
+                            displayVal = cur.toFixed(2) + "%";
+                        } else {
+                            displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                        }
+                        el.innerText = displayVal;
+                        formatChange(cur, prev, id);
+
+                        if (id === "VIX") {
+                            if (cur >= 30) el.className = "value status-danger";
+                            else if (cur >= 20) el.className = "value status-warning";
+                            else el.className = "value status-safe";
+                        }
+                    }
+
+                    if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
+                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
+                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
+                    if(ticker === "VTI") updateUsMcap(cur, prev);
+                    updateKospiUsd();
+                }
+            } catch (err) { console.error(id + " 로드 실패"); }
+        }
+
+        function updateUsMcap(c, p) {
+            const m = BASE_US_MCAP * (c/p);
+            const el = document.getElementById("US_MCAP");
+            if(el) {
+                el.innerText = m.toFixed(2);
+                formatChange(m, BASE_US_MCAP, "US_MCAP");
+                const bft = (m/27.94*100).toFixed(1);
+                const bEl = document.getElementById("BUFFETT");
+                if(bEl) { 
+                    bEl.innerText = bft + "%"; 
+                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
+                }
+            }
+        }
+
+        function updateKrMcap(c, p) {
+            const m = BASE_KR_MCAP * (c/p);
+            const el = document.getElementById("KR_MCAP");
+            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+        }
+
+        function updateKospiUsd() {
+            if(live.k && live.u) {
+                const c = live.k/live.u, p = live.kp/live.up;
+                const el = document.getElementById("KOSPI_USD");
+                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
+            }
+        }
+
+        function updateSpread() {
+            if(live.y10 && live.y2) {
+                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
+                const el = document.getElementById("SPREAD");
+                if(el) { 
+                    el.innerText = s.toFixed(2) + "%p"; 
+                    formatChange(s, sp, "SPREAD"); 
+                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
+                }
+            }
+        }
+
+        async function init() {
+            await getYahoo("VTI", "VTI_HIDDEN");
+            const jobs = [
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
+                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
+                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
+                ["BTC-USD","BTC"], ["ETH-USD","ETH"], ["XRP-USD","XRP"], ["^VIX","VIX"]
+            ];
+            
+            for (const j of jobs) {
+                getYahoo(j[0], j[1]);
+                await new Promise(r => setTimeout(r, 200));
+            }
+
+            const fx = ["USD/KRW","JPY/KRW","EUR/KRW","CNY/KRW"];
+            for (const s of fx) {
+                fetch(`https://api.twelvedata.com/quote?symbol=${s}&apikey=${MY_API_KEY}`)
+                .then(r=>r.json()).then(d=>{
+                    if(d && d.close){
+                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
+                        const el = document.getElementById(s);
+                        if(el) {
+                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, s);
+                            if(s==="USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                        }
+                    }
+                }).catch(e => console.error(s + " 환율 로드 실패"));
+                await new Promise(r => setTimeout(r, 500));
+            }
+
+            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
+                if(d && d.chart && d.chart.result) {
+                    const v = d.chart.result[0].meta.regularMarketPrice;
+                    const el = document.getElementById("SHILLER");
+                    if(el) { 
+                        el.innerText = v.toFixed(1); 
+                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
+                    }
+                }
+            });
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
