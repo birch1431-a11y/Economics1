@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🔄 글로벌 경제 상황판 (복구 완료)</title>
+    <title>🔄 글로벌 경제 상황판 (강력 복구)</title>
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, sans-serif; padding: 15px; margin: 0; }
         .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 25px; color: #c5a059; cursor: pointer; padding: 10px; border: 1px solid #444; border-radius: 8px; }
@@ -65,25 +65,81 @@
     <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
 
     <div class="footer-copy">2026 Developed by S.K. Chun</div>
-    <div id="status-msg" style="text-align:center; font-size:0.7rem; color:#555; margin-bottom:30px;">연결 시도 중...</div>
+    <div id="status-msg" style="text-align:center; font-size:0.7rem; color:#555; margin-bottom:30px;">최적의 경로를 찾는 중...</div>
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
-        let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
+        let live = { k:0, kp:0, u:0, up:0, y10:0, y2:0 };
 
-        // [핵심] 가장 범용적인 프록시로 야후 데이터 호출
-        async function getYahoo(ticker, id) {
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`;
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+        // [New!] 야후 파이낸스 직접 우회 및 백업 프록시 결합
+        async function fetchStock(ticker, id) {
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+            // AllOrigins는 가끔 느리지만 가장 정확한 결과를 뱉습니다.
+            const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
             
             try {
-                const res = await fetch(proxyUrl);
-                const data = await res.json();
+                const res = await fetch(proxy);
+                const json = await res.json();
+                const data = JSON.parse(json.contents);
                 const meta = data.chart.result[0].meta;
-                const cur = meta.regularMarketPrice;
-                const prev = meta.previousClose;
-                updateUI(id, cur, prev, ticker);
-            } catch (e) { console.error(id + " 로딩 실패"); }
+                updateView(id, meta.regularMarketPrice, meta.previousClose, ticker);
+            } catch (e) {
+                console.error(id + " 로딩 실패, 재시도 중...");
+                // 보조 프록시로 재시도
+                const backupProxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+                try {
+                    const res2 = await fetch(backupProxy);
+                    const data2 = await res2.json();
+                    const meta2 = data2.chart.result[0].meta;
+                    updateView(id, meta2.regularMarketPrice, meta2.previousClose, ticker);
+                } catch(e2) { console.log(id + " 최종 실패"); }
+            }
         }
+
+        async function fetchFX(symbol) {
+            try {
+                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${MY_API_KEY}`);
+                const d = await res.json();
+                if(d.close) updateView(symbol, parseFloat(d.close), parseFloat(d.previous_close), symbol);
+            } catch (e) { console.error(symbol + " 환율 실패"); }
+        }
+
+        function updateView(id, cur, prev, ticker) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            let dv = "";
+            if (id === "SILVER" || id === "XRP") dv = cur.toFixed(3);
+            else if (id.includes("US") && id.includes("Y")) dv = cur.toFixed(2) + "%";
+            else dv = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+            el.innerText = dv;
+            
+            const diff = cur - prev, pct = (diff/prev*100).toFixed(2);
+            const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
+            const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
+            const cEl = document.getElementById(id + "-c");
+            if(cEl) cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2})} (${pct}%)</span>`;
+
+            // 실시간 연동 연산
+            if(id === "KOSPI") { live.k=cur; live.kp=prev; }
+            if(id === "USD/KRW") { live.u=cur; live.up=prev; }
+            if(id === "US10Y") live.y10=cur;
+            if(id === "US2Y") live.y2=cur;
+            
+            if(live.k && live.u) {
+                const c = live.k/live.u, p = live.kp/live.up;
+                const kusdEl = document.getElementById("KOSPI_USD");
+                if(kusdEl) {
+                    kusdEl.innerText = c.toFixed(2);
+                    const kdiff = c-p, kpct = (kdiff/p*100).toFixed(2);
+                    document.getElementById("KOSPI_USD-c").innerHTML = `<span class="${kdiff>0?'up':'down'}">${kdiff>0?'▲':'▼'} ${Math.abs(kdiff).toFixed(2)} (${kpct}%)</span>`;
+                }
+            }
+            if(live.y10 && live.y2) {
+                const s = (live.y10 - live.y2).toFixed(2);
+                document.getElementById("SPREAD").innerText = s + "%p";
+                document.getElementById("SPREAD").className = "value " + (parseFloat(s) < 0 ? "status-danger" : "status-safe");
+            }
+            if(ticker === "VTI") {
+                const m = (
