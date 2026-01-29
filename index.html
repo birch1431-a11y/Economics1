@@ -1,95 +1,113 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>글로벌 경제 상황판</title>
-    <style>
-        /* 최초 코드의 깔끔한 스타일 유지 */
-        body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, sans-serif; padding: 15px; margin: 0; }
-        .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 25px; color: #c5a059; }
-        .category { margin-top: 25px; font-size: 0.95rem; color: #ffffff; font-weight: bold; }
-        .hr-short { border: 0; border-top: 2px solid #c5a059; width: 30px; margin: 5px 0 10px 0; }
-        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; border-bottom: 1px solid #222; }
-        .label { font-size: 0.95rem; color: #bbbbbb; } 
-        .val-container { text-align: right; }
-        .value { font-size: 1rem; font-weight: 600; font-family: 'Roboto Mono', monospace; display: block; }
-        .change { font-size: 0.75rem; font-weight: 400; margin-top: 2px; }
-        .up { color: #ff4444; } .down { color: #4488ff; }
-        .footer { text-align: center; font-size: 0.7rem; color: #555; margin-top: 40px; padding-top: 20px; border-top: 1px solid #222; }
-    </style>
-</head>
-<body>
-    <div class="header">📊 글로벌 경제 상황판</div>
+<script>
+    const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
+    const BASE_US_MCAP = 62.5; 
+    const BASE_KR_MCAP = 4660; 
+    let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-    <div class="category">외환 / 코인</div><hr class="hr-short">
-    <div class="item-row">
-        <span class="label">원/달러 환율</span>
-        <div class="val-container"><span class="value" id="USD/KRW">--</span><div class="change" id="USD/KRW-c"></div></div>
-    </div>
-    <div class="item-row">
-        <span class="label">원/엔 환율</span>
-        <div class="val-container"><span class="value" id="JPY/KRW">--</span><div class="change" id="JPY/KRW-c"></div></div>
-    </div>
-    <div class="item-row">
-        <span class="label">비트코인($)</span>
-        <div class="val-container"><span class="value" id="BTC/USD">--</span><div class="change" id="BTC/USD-c"></div></div>
-    </div>
-
-    <div class="category">주요 증시 지표</div><hr class="hr-short">
-    <div class="item-row">
-        <span class="label">S&P 500 (ETF)</span>
-        <div class="val-container"><span class="value" id="SPY">--</span><div class="change" id="SPY-c"></div></div>
-    </div>
-    <div class="item-row">
-        <span class="label">나스닥 100 (ETF)</span>
-        <div class="val-container"><span class="value" id="QQQ">--</span><div class="change" id="QQQ-c"></div></div>
-    </div>
-
-    <div id="status" style="text-align:center; font-size:0.7rem; color:#444; margin-top:20px;">연결 시도 중...</div>
-    <div class="footer">2026 Developed by S.K. Chun</div>
-
-    <script>
-        const API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const targetSymbols = ["USD/KRW", "JPY/KRW", "BTC/USD", "SPY", "QQQ"];
-
-        async function fetchData() {
-            for (let i = 0; i < targetSymbols.symbols; i++) { /* 아래 로직으로 대체 */ }
-            
-            // 데이터 꼬임 방지를 위해 순차적 실행
-            for (let i = 0; i < targetSymbols.length; i++) {
-                const symbol = targetSymbols[i];
-                try {
-                    const response = await fetch(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${API_KEY}`);
-                    const data = await response.json();
-
-                    if (data.close) {
-                        const cur = parseFloat(data.close);
-                        const prev = parseFloat(data.previous_close);
-                        const diff = cur - prev;
-                        const pct = ((diff / prev) * 100).toFixed(2);
-
-                        // 수치 업데이트
-                        const valEl = document.getElementById(symbol);
-                        valEl.innerText = (symbol === "JPY/KRW") ? cur.toFixed(3) : cur.toLocaleString(undefined, {minimumFractionDigits: 2});
-
-                        // 등락 업데이트 (최초 방식)
-                        const changeEl = document.getElementById(symbol + "-c");
-                        const sign = diff > 0 ? "▲" : (diff < 0 ? "▼" : "");
-                        const cls = diff > 0 ? "up" : "down";
-                        changeEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toFixed(2)} (${pct}%)</span>`;
-                    }
-                } catch (e) {
-                    console.log(symbol + " 로드 실패");
-                }
-                // API 한도 준수를 위해 8.5초 간격 유지
-                document.getElementById('status').innerText = `데이터 수신 중... (${i+1}/${targetSymbols.length})`;
-                await new Promise(r => setTimeout(r, 8500));
-            }
-            document.getElementById('status').innerText = "업데이트 완료: " + new Date().toLocaleTimeString();
+    // 프록시 서버 목록 (첫 번째가 안되면 두 번째로 시도하도록 보강)
+    async function fetchData(url) {
+        const proxies = [
+            `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+            `https://corsproxy.io/?${encodeURIComponent(url)}`
+        ];
+        
+        for (const proxy of proxies) {
+            try {
+                const res = await fetch(proxy);
+                const data = await res.json();
+                // allorigins는 응답이 문자열로 올 수 있어 처리 필요
+                return typeof data.contents === 'string' ? JSON.parse(data.contents) : (data.contents || data);
+            } catch (e) { continue; }
         }
+        return null;
+    }
 
-        window.onload = fetchData;
-    </script>
-</body>
-</html>
+    function formatChange(c, p, id) {
+        const diff = c - p, pct = (diff/p*100).toFixed(2);
+        const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
+        const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
+        const cEl = document.getElementById(id + "-c");
+        if(cEl) {
+            cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
+        }
+    }
+
+    async function getYahoo(ticker, id) {
+        try {
+            // 야후 파이낸스 데이터 호출
+            const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
+            
+            if (data && data.chart && data.chart.result) {
+                const meta = data.chart.result[0].meta;
+                const cur = meta.regularMarketPrice;
+                const prev = meta.previousClose;
+                renderValue(id, cur, prev, ticker);
+            } else {
+                // 야후 실패 시 Twelve Data로 한 번 더 시도 (보험)
+                fetchTwelveFallback(ticker, id);
+            }
+        } catch (err) { 
+            console.error(id + " 로드 실패"); 
+        }
+    }
+
+    // 데이터 렌더링 로직 (기존 자릿수 조절 로직 그대로 보존)
+    function renderValue(id, cur, prev, ticker) {
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        let displayVal = "";
+        if (id === "SILVER" || id === "XRP") {
+            displayVal = cur.toFixed(3);
+        } else if (id === "US30Y" || id === "US10Y" || id === "US2Y") {
+            displayVal = cur.toFixed(2) + "%";
+        } else {
+            displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        }
+        
+        el.innerText = displayVal;
+        formatChange(cur, prev, id);
+
+        // 특수 지표 연산 유지
+        if (id === "VIX") {
+            if (cur >= 30) el.className = "value status-danger";
+            else if (cur >= 20) el.className = "value status-warning";
+            else el.className = "value status-safe";
+        }
+        if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
+        if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
+        if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
+        if(ticker === "VTI") updateUsMcap(cur, prev);
+        updateKospiUsd();
+    }
+
+    // 야후 차단 대비 보조 함수
+    async function fetchTwelveFallback(ticker, id) {
+        const symbolMap = { "^GSPC":"SPX", "^IXIC":"IXIC", "BTC-USD":"BTC/USD" };
+        const sym = symbolMap[ticker] || ticker;
+        try {
+            const res = await fetch(`https://api.twelvedata.com/quote?symbol=${sym}&apikey=${MY_API_KEY}`);
+            const d = await res.json();
+            if(d && d.close) renderValue(id, parseFloat(d.close), parseFloat(d.previous_close), ticker);
+        } catch(e) {}
+    }
+
+    function updateUsMcap(c, p) {
+        const m = BASE_US_MCAP * (c/p);
+        const el = document.getElementById("US_MCAP");
+        if(el) {
+            el.innerText = m.toFixed(2);
+            formatChange(m, BASE_US_MCAP, "US_MCAP");
+            const bft = (m/27.94*100).toFixed(1);
+            const bEl = document.getElementById("BUFFETT");
+            if(bEl) { 
+                bEl.innerText = bft + "%"; 
+                bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
+            }
+        }
+    }
+
+    function updateKrMcap(c, p) {
+        const m = BASE_KR_MCAP * (c/p);
+        const el = document.getElementById("KR_MCAP");
+        if(el) { el.innerText = Math.floor(m).
