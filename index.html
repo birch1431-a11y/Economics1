@@ -73,7 +73,15 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+        async function fetchData(url) {
+            // AllOrigins 프록시 사용 (contents 속성으로 데이터가 들어옴)
+            const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+            try {
+                const res = await fetch(proxy);
+                const data = await res.json();
+                return JSON.parse(data.contents);
+            } catch (e) { return null; }
+        }
 
         function formatChange(c, p, id) {
             const diff = c - p, pct = (diff/p*100).toFixed(2);
@@ -85,114 +93,6 @@
             }
         }
 
-        async function getTwelveData(symbol, id) {
+        async function getYahoo(ticker, id) {
             try {
-                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${MY_API_KEY}`);
-                const d = await res.json();
-                
-                if (d && d.close) {
-                    const cur = parseFloat(d.close);
-                    const prev = parseFloat(d.previous_close);
-                    const el = document.getElementById(id);
-
-                    if (el) {
-                        let displayVal = "";
-                        if (id === "SILVER" || id === "XRP") {
-                            displayVal = cur.toFixed(3);
-                        } else if (id === "US30Y" || id === "US10Y" || id === "US2Y") {
-                            displayVal = cur.toFixed(2) + "%";
-                        } else {
-                            displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                        }
-                        el.innerText = displayVal;
-                        formatChange(cur, prev, id);
-
-                        if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
-                        if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
-                        if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
-                        if(symbol === "VTI") updateUsMcap(cur, prev);
-                        if(id === "USD/KRW") { live.u=cur; live.up=prev; }
-                        updateKospiUsd();
-
-                        if (id === "VIX") {
-                            if (cur >= 30) el.className = "value status-danger";
-                            else if (cur >= 20) el.className = "value status-warning";
-                            else el.className = "value status-safe";
-                        }
-                    }
-                }
-            } catch (err) { console.error(id + " 로드 실패"); }
-        }
-
-        function updateUsMcap(c, p) {
-            const m = BASE_US_MCAP * (c/p);
-            const el = document.getElementById("US_MCAP");
-            if(el) {
-                el.innerText = m.toFixed(2);
-                formatChange(m, BASE_US_MCAP, "US_MCAP");
-                const bft = (m/27.94*100).toFixed(1);
-                const bEl = document.getElementById("BUFFETT");
-                if(bEl) { 
-                    bEl.innerText = bft + "%"; 
-                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
-                }
-            }
-        }
-
-        function updateKrMcap(c, p) {
-            const m = BASE_KR_MCAP * (c/p);
-            const el = document.getElementById("KR_MCAP");
-            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
-        }
-
-        function updateKospiUsd() {
-            if(live.k && live.u) {
-                const c = live.k/live.u, p = live.kp/live.up;
-                const el = document.getElementById("KOSPI_USD");
-                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
-            }
-        }
-
-        function updateSpread() {
-            if(live.y10 && live.y2) {
-                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
-                const el = document.getElementById("SPREAD");
-                if(el) { 
-                    el.innerText = s.toFixed(2) + "%p";
-                    formatChange(s, sp, "SPREAD"); 
-                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
-                }
-            }
-        }
-
-        async function init() {
-            // 지표 리스트
-            const jobs = [
-                ["DXY", "DXY"], ["VTI", "VTI_HIDDEN"], ["SPX", "SP500"], ["IXIC", "NASDAQ"], ["DJI", "DOW"],
-                ["KOSPI", "KOSPI"], ["KOSDAQ", "KOSDAQ"], ["TYX", "US30Y"], ["TNX", "US10Y"], ["IRX", "US2Y"],
-                ["XAU/USD", "GOLD"], ["XAG/USD", "SILVER"], ["HG=F", "COPPER"], ["XPT/USD", "PLATINUM"], ["CL=F", "WTI"],
-                ["BTC/USD", "BTC"], ["ETH/USD", "ETH"], ["XRP/USD", "XRP"], ["VIX", "VIX"]
-            ];
-
-            // 환율 리스트
-            const fx = ["USD/KRW", "JPY/KRW", "EUR/KRW", "CNY/KRW"];
-
-            // 순차적 실행 (초당 약 1개씩)
-            for (const [sym, id] of jobs) {
-                await getTwelveData(sym, id);
-                await sleep(1100);
-            }
-
-            for (const s of fx) {
-                await getTwelveData(s, s);
-                await sleep(1100);
-            }
-
-            // 쉴러 PER (Twelve Data에 없으므로 일단 고정값 처리 혹은 별도 API 필요, 여기서는 -- 유지)
-            
-            document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
-        }
-        window.onload = init;
-    </script>
-</body>
-</html>
+                const data = await fetchData(`
