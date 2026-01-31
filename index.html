@@ -8,9 +8,9 @@
 body { background-color:#121212; color:#e0e0e0; font-family:-apple-system,sans-serif; padding:15px; margin:0 }
 .header { text-align:center; font-size:1.1rem; font-weight:bold; margin-bottom:25px; color:#c5a059; cursor:pointer; padding:10px; border:1px solid #444; border-radius:8px }
 .hr-short { border:0; border-top:2px solid #c5a059; width:30px; margin:5px 0 10px 0 }
-.category { margin-top:25px; font-size:.95rem; font-weight:bold }
+.category { margin-top:25px; font-size:.95rem; color:#fff; font-weight:bold }
 .item-row { display:flex; justify-content:space-between; align-items:center; padding:10px 5px; border-bottom:1px solid #222 }
-.label { color:#bbb; font-size:.95rem }
+.label { font-size:.95rem; color:#bbb }
 .val-container { text-align:right }
 .value { font-size:1rem; font-weight:600; font-family:'Roboto Mono',monospace }
 .change { font-size:.75rem; margin-top:2px }
@@ -22,50 +22,9 @@ body { background-color:#121212; color:#e0e0e0; font-family:-apple-system,sans-s
 .faded{opacity:.6}
 </style>
 </head>
-<body>
 
+<body>
 <div class="header" onclick="location.reload()">🔄 글로벌 경제 상황판</div>
 
-<!-- (HTML UI 부분은 기존과 동일 — 생략 없이 유지) -->
-
-<div id="status-msg" style="text-align:center;font-size:.7rem;color:#555;margin-bottom:30px">데이터 연결 중...</div>
-
-<script>
-const MY_API_KEY="7142915ec1dc45caad56dfc9fcf07341";
-const BASE_US_MCAP=62.5, BASE_KR_MCAP=4660;
-let live={k:0,kp:0,u:0,up:0,y10:0,y10p:0,y2:0,y2p:0};
-
-// Yahoo 프록시 호출 (안정화)
-async function fetchData(url){
-  try{
-    const r=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,{cache:"no-store"});
-    const d=await r.json();
-    if(!d||!d.contents||d.contents.includes("<html")) throw "bad";
-    return JSON.parse(d.contents);
-  }catch{ return null; }
-}
-
-function cacheSet(id,val){ localStorage.setItem("cache_"+id,val); }
-function cacheGet(id){ return localStorage.getItem("cache_"+id); }
-
-function formatChange(c,p,id){
-  if(!p) return;
-  const diff=c-p, pct=(diff/p*100).toFixed(2);
-  const sign=diff>0?"▲":diff<0?"▼":"";
-  const cls=diff>0?"up":diff<0?"down":"";
-  const el=document.getElementById(id+"-c");
-  if(el) el.innerHTML=`<span class="${cls}">${sign} ${Math.abs(diff).toFixed(2)} (${pct}%)</span>`;
-}
-
-async function getYahoo(ticker,id){
-  const data=await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
-  const el=document.getElementById(id);
-  if(!data||!data.chart||!data.chart.result){
-    const c=cacheGet(id);
-    if(el&&c){ el.innerText=c; el.classList.add("faded"); }
-    else if(el) el.innerText="N/A";
-    return;
-  }
-  const meta=data.chart.result[0].meta;
-  const cur=meta.regularMarketPrice, prev=meta.previousClose;
-  let v=cur.toFixed(2);
+<div class="category">외환</div><hr class="hr-short">
+<div class="item-row"><span class="label">달러지수</span><div class="val-
