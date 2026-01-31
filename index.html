@@ -2,29 +2,92 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🔄 글로벌 경제 상황판</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>글로벌 경제 상황판 (진단모드)</title>
 <style>
-body { background-color:#121212; color:#e0e0e0; font-family:-apple-system,sans-serif; padding:15px; margin:0 }
-.header { text-align:center; font-size:1.1rem; font-weight:bold; margin-bottom:25px; color:#c5a059; cursor:pointer; padding:10px; border:1px solid #444; border-radius:8px }
-.hr-short { border:0; border-top:2px solid #c5a059; width:30px; margin:5px 0 10px 0 }
-.category { margin-top:25px; font-size:.95rem; color:#fff; font-weight:bold }
-.item-row { display:flex; justify-content:space-between; align-items:center; padding:10px 5px; border-bottom:1px solid #222 }
-.label { font-size:.95rem; color:#bbb }
-.val-container { text-align:right }
-.value { font-size:1rem; font-weight:600; font-family:'Roboto Mono',monospace }
-.change { font-size:.75rem; margin-top:2px }
-.up { color:#ff4444 } .down { color:#4488ff }
-.status-danger{color:#ff4444!important}
-.status-warning{color:#ffbb33!important}
-.status-safe{color:#00ff88!important}
-.footer-copy{text-align:center;font-size:.7rem;color:#555;margin:40px 0 10px;border-top:1px solid #222;padding-top:20px}
-.faded{opacity:.6}
+body { background:#121212; color:#e0e0e0; font-family:-apple-system,sans-serif; margin:0; padding:15px }
+.item { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #222 }
+.value { font-family:monospace }
+#debug {
+  margin-top:40px;
+  padding:15px;
+  background:#1b1b1b;
+  color:#ff6666;
+  font-size:12px;
+  white-space:pre-wrap;
+  border:1px solid #333;
+}
 </style>
 </head>
 
 <body>
-<div class="header" onclick="location.reload()">🔄 글로벌 경제 상황판</div>
+<h3>🔄 글로벌 경제 상황판 (진단모드)</h3>
 
-<div class="category">외환</div><hr class="hr-short">
-<div class="item-row"><span class="label">달러지수</span><div class="val-
+<div class="item"><span>DXY</span><span class="value" id="DXY">--</span></div>
+<div class="item"><span>S&P500</span><span class="value" id="SP500">--</span></div>
+<div class="item"><span>NASDAQ</span><span class="value" id="NASDAQ">--</span></div>
+<div class="item"><span>KOSPI</span><span class="value" id="KOSPI">--</span></div>
+<div class="item"><span>USD/KRW</span><span class="value" id="USD_KRW">--</span></div>
+
+<div id="debug">[진단 로그 시작]</div>
+
+<script>
+const debug = msg => {
+  document.getElementById("debug").innerText += "\n" + msg;
+};
+
+window.onerror = function(msg, src, line, col) {
+  debug("❌ JS ERROR: " + msg + " (" + line + ":" + col + ")");
+};
+
+async function fetchSafe(url) {
+  try {
+    const res = await fetch("https://api.allorigins.win/get?url=" + encodeURIComponent(url));
+    const j = await res.json();
+    return JSON.parse(j.contents);
+  } catch (e) {
+    debug("❌ FETCH FAIL: " + url);
+    debug(String(e));
+    return null;
+  }
+}
+
+async function yahoo(ticker, id) {
+  debug("▶ 요청: " + ticker);
+  const d = await fetchSafe(
+    "https://query1.finance.yahoo.com/v8/finance/chart/" + ticker + "?interval=1d&range=1d"
+  );
+  if (!d || !d.chart || !d.chart.result) {
+    debug("⚠ 데이터 없음: " + ticker);
+    return;
+  }
+  const v = d.chart.result[0].meta.regularMarketPrice;
+  document.getElementById(id).innerText = v;
+  debug("✅ 성공: " + ticker);
+}
+
+async function fx() {
+  try {
+    const r = await fetch("https://api.twelvedata.com/quote?symbol=USD/KRW&apikey=demo");
+    const d = await r.json();
+    document.getElementById("USD_KRW").innerText = d.close;
+    debug("✅ 환율 성공");
+  } catch (e) {
+    debug("❌ 환율 실패");
+  }
+}
+
+async function init() {
+  debug("=== INIT START ===");
+  await yahoo("DX-Y.NYB", "DXY");
+  await yahoo("^GSPC", "SP500");
+  await yahoo("^IXIC", "NASDAQ");
+  await yahoo("^KS11", "KOSPI");
+  await fx();
+  debug("=== INIT END ===");
+}
+
+init();
+</script>
+</body>
+</html>
