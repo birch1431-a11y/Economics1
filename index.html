@@ -1,38 +1,38 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🔄 글로벌 경제 상황판</title>
-<style>
-body { background-color:#121212; color:#e0e0e0; font-family:-apple-system,sans-serif; padding:15px; margin:0 }
-.header { text-align:center; font-size:1.1rem; font-weight:bold; margin-bottom:25px; color:#c5a059; cursor:pointer; padding:10px; border:1px solid #444; border-radius:8px }
-.hr-short { border:0; border-top:2px solid #c5a059; width:30px; margin:5px 0 10px }
-.category { margin-top:25px; font-size:.95rem; font-weight:bold }
-.item-row { display:flex; justify-content:space-between; align-items:center; padding:10px 5px; border-bottom:1px solid #222 }
-.label { font-size:.95rem; color:#bbb }
-.val-container { text-align:right }
-.value { font-size:1rem; font-weight:600; font-family:'Roboto Mono',monospace }
-.change { font-size:.75rem; margin-top:2px }
-.up{color:#ff4444}.down{color:#4488ff}
-.status-danger{color:#ff4444!important}
-.status-warning{color:#ffbb33!important}
-.status-safe{color:#00ff88!important}
-.footer-copy{text-align:center;font-size:.7rem;color:#555;margin:40px 0 10px;border-top:1px solid #222;padding-top:20px}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🔄 글로벌 경제 상황판</title>
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, sans-serif; padding: 15px; margin: 0; }
+        .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 25px; color: #c5a059; cursor: pointer; padding: 10px; border: 1px solid #444; border-radius: 8px; }
+        .hr-short { border: 0; border-top: 2px solid #c5a059; width: 30px; margin: 5px 0 10px 0; }
+        .category { margin-top: 25px; font-size: 0.95rem; color: #ffffff; font-weight: bold; }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; border-bottom: 1px solid #222; }
+        .label { font-size: 0.95rem; color: #bbbbbb; font-weight: 400; } 
+        .val-container { text-align: right; }
+        .value { font-size: 1rem; font-weight: 600; font-family: 'Roboto Mono', monospace; color: #ffffff; display: block; }
+        .change { font-size: 0.75rem; font-weight: 400; margin-top: 2px; }
+        .up { color: #ff4444; } .down { color: #4488ff; }
+        .status-danger { color: #ff4444 !important; } 
+        .status-warning { color: #ffbb33 !important; } 
+        .status-safe { color: #00ff88 !important; }
+        .footer-copy { text-align: center; font-size: 0.7rem; color: #555; margin: 40px 0 10px 0; border-top: 1px solid #222; padding-top: 20px; letter-spacing: 0.5px; }
+    </style>
 </head>
-
 <body>
-<div class="header" onclick="location.reload()">🔄 글로벌 경제 상황판</div>
+    <div class="header" onclick="location.reload()">🔄 글로벌 경제 상황판</div>
 
-<!-- (HTML 구조는 기존과 동일, 생략 없음) -->
-<!-- XRP container 버그만 수정 -->
-<!-- 중간 HTML은 기존 코드와 동일하므로 생략하지 않고 그대로 유지 -->
+    <div class="category">외환</div><hr class="hr-short">
+    <div class="item-row"><span class="label">달러지수</span><div class="val-container"><span class="value" id="DXY">--</span><div class="change" id="DXY-c">--</div></div></div>
+    <div class="item-row"><span class="label">원/달러</span><div class="val-container"><span class="value" id="USD/KRW">--</span><div class="change" id="USD/KRW-c">--</div></div></div>
+    <div class="item-row"><span class="label">원/엔</span><div class="val-container"><span class="value" id="JPY/KRW">--</span><div class="change" id="JPY/KRW-c">--</div></div></div>
+    <div class="item-row"><span class="label">원/유로</span><div class="val-container"><span class="value" id="EUR/KRW">--</span><div class="change" id="EUR/KRW-c">--</div></div></div>
+    <div class="item-row"><span class="label">원/위안</span><div class="val-container"><span class="value" id="CNY/KRW">--</span><div class="change" id="CNY/KRW-c">--</div></div></div>
 
-<div class="footer-copy">2026 Developed by <span style="color:#777">S.K. Chun</span></div>
-<div id="status-msg" style="text-align:center;font-size:.7rem;color:#555;margin-bottom:30px">데이터 연결 중...</div>
-
-<script>
-const MY_API_KEY="7142915ec1dc45caad56dfc9fcf07341";
-const BASE_US_MCAP=62.5, BASE_KR_MCAP=4660;
-let live={k:0,kp:0,u:0,up:0,y10:0
+    <div class="category">주요 증시지표</div><hr class="hr-short">
+    <div class="item-row"><span class="label">미 증시 시총($T)</span><div class="val-container"><span class="value" id="US_MCAP">--</span><div class="change" id="US_MCAP-c">--</div></div></div>
+    <div class="item-row"><span class="label">S&P 500</span><div class="val-container"><span class="value" id="SP500">--</span><div class="change" id="SP500-c">--</div></div></div>
+    <div class="item-row"><span class="label">NASDAQ</span><div class="val-container"><span class="value" id="NASDAQ">--</span><div class="change" id="NASDAQ-c">--</div></div></div>
+    <div class="item-row"><span class="label">DOW</span><div class="val-co
