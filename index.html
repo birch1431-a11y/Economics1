@@ -73,12 +73,46 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        async function fetchData(url) {
-            const proxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+        async function fetchYahoo(ticker, id) {
+            // 차단된 corsproxy 대신 allorigins 사용
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`;
+            const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
             try {
                 const res = await fetch(proxy);
-                return await res.json();
-            } catch (e) { return null; }
+                const json = await res.json();
+                const data = JSON.parse(json.contents);
+                if (data && data.chart && data.chart.result) {
+                    const meta = data.chart.result[0].meta;
+                    updateUI(id, meta.regularMarketPrice, meta.previousClose);
+                    if(id === "KOSPI") { live.k=meta.regularMarketPrice; live.kp=meta.previousClose; updateKrMcap(meta.regularMarketPrice, meta.previousClose); }
+                    if(id === "US10Y") { live.y10=meta.regularMarketPrice; live.y10p=meta.previousClose; updateSpread(); }
+                    if(id === "US2Y") { live.y2=meta.regularMarketPrice; live.y2p=meta.previousClose; updateSpread(); }
+                    if(ticker === "VTI") updateUsMcap(meta.regularMarketPrice, meta.previousClose);
+                    updateKospiUsd();
+                }
+            } catch (e) { console.error(id + " 실패"); }
+        }
+
+        async function getUpbit(coin, id) {
+            // 업비트 USDT 마켓 데이터
+            try {
+                const res = await fetch(`https://api.upbit.com/v1/ticker?markets=USDT-${coin}`);
+                const data = await res.json();
+                if(data && data[0]) {
+                    updateUI(id, data[0].trade_price, data[0].prev_closing_price);
+                }
+            } catch (e) { console.error(id + " 업비트 실패"); }
+        }
+
+        function updateUI(id, cur, prev) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            let val = (id === "SILVER" || id === "XRP") ? cur.toFixed(3) : 
+                     (id.includes("US") && id.includes("Y")) ? cur.toFixed(2) + "%" :
+                     cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+            el.innerText = val;
+            formatChange(cur, prev, id);
+            if (id === "VIX") el.className = "value " + (cur>=30?"status-danger":cur>=20?"status-warning":"status-safe");
         }
 
         function formatChange(c, p, id) {
@@ -86,66 +120,7 @@
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
             const cEl = document.getElementById(id + "-c");
-            if(cEl) {
-                cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
-            }
-        }
-
-        async function getYahoo(ticker, id) {
-            try {
-                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
-                if (data && data.chart && data.chart.result) {
-                    const meta = data.chart.result[0].meta;
-                    const cur = meta.regularMarketPrice;
-                    const prev = meta.previousClose;
-                    updateUI(id, cur, prev);
-                    
-                    if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
-                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
-                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
-                    if(ticker === "VTI") updateUsMcap(cur, prev);
-                    updateKospiUsd();
-                }
-            } catch (err) { console.error(id + " 로드 실패"); }
-        }
-
-        // 업비트 API (BTC, ETH, XRP 용) - 프록시 없이 직접 호출 시도
-        async function getUpbit(coin, id) {
-            try {
-                const res = await fetch(`https://api.upbit.com/v1/ticker?markets=USDT-${coin}`);
-                const data = await res.json();
-                if(data && data[0]) {
-                    const cur = data[0].trade_price;
-                    const prev = data[0].prev_closing_price;
-                    updateUI(id, cur, prev);
-                }
-            } catch (e) { 
-                // 업비트 직접 호출 실패 시 야후로 백업
-                getYahoo(`${coin}-USD`, id);
-            }
-        }
-
-        function updateUI(id, cur, prev) {
-            const el = document.getElementById(id);
-            if (!el) return;
-
-            let displayVal = "";
-            if (id === "SILVER" || id === "XRP") {
-                displayVal = cur.toFixed(3);
-            } else if (id === "US30Y" || id === "US10Y" || id === "US2Y") {
-                displayVal = cur.toFixed(2) + "%";
-            } else {
-                displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-            }
-            
-            el.innerText = displayVal;
-            formatChange(cur, prev, id);
-
-            if (id === "VIX") {
-                if (cur >= 30) el.className = "value status-danger";
-                else if (cur >= 20) el.className = "value status-warning";
-                else el.className = "value status-safe";
-            }
+            if(cEl) cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
         }
 
         function updateUsMcap(c, p) {
@@ -156,10 +131,7 @@
                 formatChange(m, BASE_US_MCAP, "US_MCAP");
                 const bft = (m/27.94*100).toFixed(1);
                 const bEl = document.getElementById("BUFFETT");
-                if(bEl) { 
-                    bEl.innerText = bft + "%"; 
-                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
-                }
+                if(bEl) { bEl.innerText = bft + "%"; bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); }
             }
         }
 
@@ -181,39 +153,27 @@
             if(live.y10 && live.y2) {
                 const s = live.y10-live.y2, sp = live.y10p-live.y2p;
                 const el = document.getElementById("SPREAD");
-                if(el) { 
-                    el.innerText = s.toFixed(2) + "%p";
-                    formatChange(s, sp, "SPREAD"); 
-                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
-                }
+                if(el) { el.innerText = s.toFixed(2) + "%p"; formatChange(s, sp, "SPREAD"); el.className = "value " + (s<0?"status-danger":"status-safe"); }
             }
         }
 
         async function init() {
-            // 1. 기초 지표 로드 (VTI)
-            await getYahoo("VTI", "VTI_HIDDEN");
-
-            // 2. 가상자산 (업비트 소스 활용)
+            // 1. 기초 지표 및 코인
+            await fetchYahoo("VTI", "VTI_HIDDEN");
             getUpbit("BTC", "BTC");
             getUpbit("ETH", "ETH");
             getUpbit("XRP", "XRP");
 
-            // 3. 야후 지표들 (순차적 호출로 안정성 확보)
+            // 2. 야후 지표들
             const jobs = [
                 ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
                 ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
-                ["^VIX","VIX"]
+                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"], ["^VIX","VIX"]
             ];
-            
-            for (const [ticker, id] of jobs) {
-                getYahoo(ticker, id);
-                await new Promise(r => setTimeout(r, 200)); // 0.2초 간격
-            }
+            for (const j of jobs) { await fetchYahoo(j[0], j[1]); await new Promise(r=>setTimeout(r, 300)); }
 
-            // 4. 환율 (TwelveData)
-            const fx = ["USD/KRW","JPY/KRW","EUR/KRW","CNY/KRW"];
-            for (const s of fx) {
+            // 3. 환율
+            for (const s of ["USD/KRW","JPY/KRW","EUR/KRW","CNY/KRW"]) {
                 fetch(`https://api.twelvedata.com/quote?symbol=${s}&apikey=${MY_API_KEY}`)
                 .then(r=>r.json()).then(d=>{
                     if(d && d.close){
@@ -221,22 +181,10 @@
                         updateUI(s, c, p);
                         if(s==="USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                     }
-                }).catch(e => console.error(s + " 환율 로드 실패"));
-                await new Promise(r => setTimeout(r, 500));
+                });
+                await new Promise(r=>setTimeout(r, 500));
             }
-
-            // 5. 쉴러 PER
-            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
-                if(d && d.chart && d.chart.result) {
-                    const v = d.chart.result[0].meta.regularMarketPrice;
-                    const el = document.getElementById("SHILLER");
-                    if(el) { 
-                        el.innerText = v.toFixed(1); 
-                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
-                    }
-                }
-            });
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString(); }, 2000);
         }
         window.onload = init;
     </script>
