@@ -73,17 +73,18 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        // 두 개의 프록시 서버를 사용하여 부하 분산
         async function fetchData(url, useAltProxy = false) {
             try {
+                // 캐시 방지를 위한 랜덤 파라미터 추가
+                const cbust = `&cb=${Math.random()}`;
                 const proxy = useAltProxy 
-                    ? `https://corsproxy.io/?${encodeURIComponent(url)}` 
-                    : `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+                    ? `https://corsproxy.io/?${encodeURIComponent(url + cbust)}` 
+                    : `https://api.allorigins.win/get?url=${encodeURIComponent(url + cbust)}`;
                 
                 const res = await fetch(proxy);
-                if (useAltProxy) return await res.json(); // corsproxy.io는 직접 JSON 반환
+                if (useAltProxy) return await res.json();
                 const data = await res.json();
-                return JSON.parse(data.contents); // allorigins는 contents 안에 문자열로 반환
+                return JSON.parse(data.contents);
             } catch (e) { return null; }
         }
 
@@ -173,26 +174,24 @@
         }
 
         async function init() {
-            // VTI (통로A)
             await getYahoo("VTI", "VTI_HIDDEN", false);
 
-            // 통로 A: allorigins 사용 (지수 중심)
             const jobsA = [
                 ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
                 ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"]
             ];
             
-            // 통로 B: corsproxy.io 사용 (금리, 원자재, VIXY 중심)
             const jobsB = [
-                ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
+                ["^TYX","US30Y"], ["^IRX","US2Y"],
                 ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
                 ["VIXY", "VIX"]
             ];
             
-            for (const j of jobsA) { getYahoo(j[0], j[1], false); await new Promise(r => setTimeout(r, 150)); }
-            for (const j of jobsB) { getYahoo(j[0], j[1], true); await new Promise(r => setTimeout(r, 150)); }
+            for (const j of jobsA) { getYahoo(j[0], j[1], false); await new Promise(r => setTimeout(r, 200)); }
+            for (const j of jobsB) { getYahoo(j[0], j[1], true); await new Promise(r => setTimeout(r, 200)); }
 
             const tdata_items = [
+                {s:"TNX", id:"US10Y"}, // 국채 10년물을 Twelve Data로 이동 (안정성 확보)
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
@@ -206,16 +205,17 @@
                         const el = document.getElementById(item.id);
                         if(el) {
                             if(item.id === "XRP") el.innerText = c.toFixed(4);
+                            else if(item.id === "US10Y") el.innerText = c.toFixed(2) + "%";
                             else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                            if(item.id === "US10Y"){ live.y10=c; live.y10p=p; updateSpread(); }
                         }
                     }
                 }).catch(e => console.error(item.id + " 로드 실패"));
                 await new Promise(r => setTimeout(r, 800));
             }
 
-            // 쉴러 PER (통로B 사용)
             fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d", true).then(d=>{
                 if(d && d.chart && d.chart.result) {
                     const v = d.chart.result[0].meta.regularMarketPrice;
