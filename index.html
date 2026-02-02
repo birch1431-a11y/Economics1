@@ -75,9 +75,10 @@
 
         async function fetchData(url) {
             try {
-                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                // AllOrigins 대신 CodeTabs 프록시로 주소만 교체했습니다.
+                const res = await fetch(`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`);
                 const data = await res.json();
-                return JSON.parse(data.contents);
+                return data; // CodeTabs는 AllOrigins와 달리 바로 JSON 데이터를 반환합니다.
             } catch (e) { return null; }
         }
 
@@ -93,4 +94,128 @@
 
         async function getYahoo(ticker, id) {
             try {
-                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&
+                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
+                if (data && data.chart && data.chart.result) {
+                    const meta = data.chart.result[0].meta;
+                    const cur = meta.regularMarketPrice;
+                    const prev = meta.previousClose;
+                    const el = document.getElementById(id);
+
+                    if (el) {
+                        let displayVal = "";
+                        if (id === "SILVER") { displayVal = cur.toFixed(3); } 
+                        else if (id === "US30Y" || id === "US10Y" || id === "US2Y") { displayVal = cur.toFixed(2) + "%"; } 
+                        else { displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
+                        el.innerText = displayVal;
+                        formatChange(cur, prev, id);
+
+                        if (id === "VIX") {
+                            const pct = ((cur - prev) / prev * 100);
+                            if (pct >= 5) el.className = "value status-danger";
+                            else if (pct >= 2) el.className = "value status-warning";
+                            else el.className = "value status-safe";
+                        }
+                    }
+
+                    if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
+                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
+                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
+                    if(ticker === "VTI") updateUsMcap(cur, prev);
+                    updateKospiUsd();
+                }
+            } catch (err) { console.error(id + " 로드 실패"); }
+        }
+
+        function updateUsMcap(c, p) {
+            const m = BASE_US_MCAP * (c/p);
+            const el = document.getElementById("US_MCAP");
+            if(el) {
+                el.innerText = m.toFixed(2);
+                formatChange(m, BASE_US_MCAP, "US_MCAP");
+                const bft = (m/27.94*100).toFixed(1);
+                const bEl = document.getElementById("BUFFETT");
+                if(bEl) { 
+                    bEl.innerText = bft + "%"; 
+                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
+                }
+            }
+        }
+
+        function updateKrMcap(c, p) {
+            const m = BASE_KR_MCAP * (c/p);
+            const el = document.getElementById("KR_MCAP");
+            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+        }
+
+        function updateKospiUsd() {
+            if(live.k && live.u) {
+                const c = live.k/live.u, p = live.kp/live.up;
+                const el = document.getElementById("KOSPI_USD");
+                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
+            }
+        }
+
+        function updateSpread() {
+            if(live.y10 && live.y2) {
+                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
+                const el = document.getElementById("SPREAD");
+                if(el) { 
+                    el.innerText = s.toFixed(2) + "%p"; 
+                    formatChange(s, sp, "SPREAD"); 
+                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
+                }
+            }
+        }
+
+        async function init() {
+            await getYahoo("VTI", "VTI_HIDDEN");
+            const jobs = [
+                ["^GSPC","SP500"], ["DX-Y.NYB","DXY"], ["^KS11","KOSPI"], ["GC=F","GOLD"], ["^TNX","US10Y"],
+                ["^IXIC","NASDAQ"], ["^DJI","DOW"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^IRX","US2Y"],
+                ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"], ["VIXY", "VIX"]
+            ];
+            
+            for (const j of jobs) {
+                getYahoo(j[0], j[1]);
+                await new Promise(r => setTimeout(r, 800));
+            }
+
+            const tdata_items = [
+                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
+                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
+                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
+            ];
+
+            for (const item of tdata_items) {
+                fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
+                .then(r=>r.json()).then(d=>{
+                    if(d && d.close){
+                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
+                        const el = document.getElementById(item.id);
+                        if(el) {
+                            if(item.id === "XRP") el.innerText = c.toFixed(4);
+                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, item.id);
+                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                        }
+                    }
+                }).catch(e => console.error(item.id + " 로드 실패"));
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
+                if(d && d.chart && d.chart.result) {
+                    const v = d.chart.result[0].meta.regularMarketPrice;
+                    const el = document.getElementById("SHILLER");
+                    if(el) { 
+                        el.innerText = v.toFixed(1); 
+                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
+                    }
+                }
+            });
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
