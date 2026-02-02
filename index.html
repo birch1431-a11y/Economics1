@@ -73,18 +73,17 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        async function fetchData(url, useAltProxy = false) {
+        // 통로 분산형 fetch 함수
+        async function fetchData(url, useAlt = false) {
             try {
-                // 캐시 방지를 위한 랜덤 파라미터 추가
-                const cbust = `&cb=${Math.random()}`;
-                const proxy = useAltProxy 
-                    ? `https://corsproxy.io/?${encodeURIComponent(url + cbust)}` 
-                    : `https://api.allorigins.win/get?url=${encodeURIComponent(url + cbust)}`;
+                const proxy = useAlt 
+                    ? `https://corsproxy.io/?${encodeURIComponent(url)}` 
+                    : `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
                 
                 const res = await fetch(proxy);
-                if (useAltProxy) return await res.json();
+                if (useAlt) return await res.json(); // corsproxy.io는 직접 JSON 반환
                 const data = await res.json();
-                return JSON.parse(data.contents);
+                return JSON.parse(data.contents); // allorigins는 contents 추출 필요
             } catch (e) { return null; }
         }
 
@@ -98,9 +97,9 @@
             }
         }
 
-        async function getYahoo(ticker, id, useAltProxy = false) {
+        async function getYahoo(ticker, id, useAlt = false) {
             try {
-                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`, useAltProxy);
+                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`, useAlt);
                 if (data && data.chart && data.chart.result) {
                     const meta = data.chart.result[0].meta;
                     const cur = meta.regularMarketPrice;
@@ -141,94 +140,4 @@
                 const bft = (m/27.94*100).toFixed(1);
                 const bEl = document.getElementById("BUFFETT");
                 if(bEl) { 
-                    bEl.innerText = bft + "%"; 
-                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
-                }
-            }
-        }
-
-        function updateKrMcap(c, p) {
-            const m = BASE_KR_MCAP * (c/p);
-            const el = document.getElementById("KR_MCAP");
-            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
-        }
-
-        function updateKospiUsd() {
-            if(live.k && live.u) {
-                const c = live.k/live.u, p = live.kp/live.up;
-                const el = document.getElementById("KOSPI_USD");
-                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
-            }
-        }
-
-        function updateSpread() {
-            if(live.y10 && live.y2) {
-                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
-                const el = document.getElementById("SPREAD");
-                if(el) { 
-                    el.innerText = s.toFixed(2) + "%p"; 
-                    formatChange(s, sp, "SPREAD"); 
-                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
-                }
-            }
-        }
-
-        async function init() {
-            await getYahoo("VTI", "VTI_HIDDEN", false);
-
-            const jobsA = [
-                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
-                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"]
-            ];
-            
-            const jobsB = [
-                ["^TYX","US30Y"], ["^IRX","US2Y"],
-                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
-                ["VIXY", "VIX"]
-            ];
-            
-            for (const j of jobsA) { getYahoo(j[0], j[1], false); await new Promise(r => setTimeout(r, 200)); }
-            for (const j of jobsB) { getYahoo(j[0], j[1], true); await new Promise(r => setTimeout(r, 200)); }
-
-            const tdata_items = [
-                {s:"TNX", id:"US10Y"}, // 국채 10년물을 Twelve Data로 이동 (안정성 확보)
-                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
-                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
-            ];
-
-            for (const item of tdata_items) {
-                fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
-                .then(r=>r.json()).then(d=>{
-                    if(d && d.close){
-                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        const el = document.getElementById(item.id);
-                        if(el) {
-                            if(item.id === "XRP") el.innerText = c.toFixed(4);
-                            else if(item.id === "US10Y") el.innerText = c.toFixed(2) + "%";
-                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, item.id);
-                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
-                            if(item.id === "US10Y"){ live.y10=c; live.y10p=p; updateSpread(); }
-                        }
-                    }
-                }).catch(e => console.error(item.id + " 로드 실패"));
-                await new Promise(r => setTimeout(r, 800));
-            }
-
-            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d", true).then(d=>{
-                if(d && d.chart && d.chart.result) {
-                    const v = d.chart.result[0].meta.regularMarketPrice;
-                    const el = document.getElementById("SHILLER");
-                    if(el) { 
-                        el.innerText = v.toFixed(1); 
-                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
-                    }
-                }
-            });
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
-        }
-        window.onload = init;
-    </script>
-</body>
-</html>
+                    bEl.innerText = bft
