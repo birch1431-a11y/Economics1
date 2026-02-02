@@ -75,10 +75,9 @@
 
         async function fetchData(url) {
             try {
-                // AllOrigins 대신 CodeTabs 프록시로 주소만 교체했습니다.
                 const res = await fetch(`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`);
                 const data = await res.json();
-                return data; // CodeTabs는 AllOrigins와 달리 바로 JSON 데이터를 반환합니다.
+                return data;
             } catch (e) { return null; }
         }
 
@@ -169,8 +168,9 @@
 
         async function init() {
             await getYahoo("VTI", "VTI_HIDDEN");
+            // 야후 목록에서 S&P500(^GSPC)을 제거했습니다.
             const jobs = [
-                ["^GSPC","SP500"], ["DX-Y.NYB","DXY"], ["^KS11","KOSPI"], ["GC=F","GOLD"], ["^TNX","US10Y"],
+                ["DX-Y.NYB","DXY"], ["^KS11","KOSPI"], ["GC=F","GOLD"], ["^TNX","US10Y"],
                 ["^IXIC","NASDAQ"], ["^DJI","DOW"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^IRX","US2Y"],
                 ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"], ["VIXY", "VIX"]
             ];
@@ -180,8 +180,9 @@
                 await new Promise(r => setTimeout(r, 800));
             }
 
+            // 트웰브 목록에 S&P500(SPX)을 추가하여 총 8개를 맞췄습니다.
             const tdata_items = [
-                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
+                {s:"SPX", id:"SP500"}, {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
             ];
