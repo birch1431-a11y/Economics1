@@ -168,16 +168,15 @@
 
         async function init() {
             await getYahoo("VTI", "VTI_HIDDEN");
+            // 중요 지표를 맨 앞으로 재배치했습니다.
             const jobs = [
-                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
-                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
-                ["VIXY", "VIX"]
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^KS11","KOSPI"], ["GC=F","GOLD"],
+                ["^IXIC","NASDAQ"], ["^DJI","DOW"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
+                ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"], ["VIXY", "VIX"]
             ];
             
             for (const j of jobs) {
                 getYahoo(j[0], j[1]);
-                // 야후 호출 간격을 200에서 800으로 늘렸습니다.
                 await new Promise(r => setTimeout(r, 800));
             }
 
@@ -201,7 +200,6 @@
                         }
                     }
                 }).catch(e => console.error(item.id + " 로드 실패"));
-                // 트웰브데이터 간격을 800에서 1000으로 조금 더 늘렸습니다.
                 await new Promise(r => setTimeout(r, 1000));
             }
 
