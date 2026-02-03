@@ -73,11 +73,29 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
+        // [버핏지수 분모 자동 갱신 로직]
+        function getBufferGDP() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const date = now.getDate();
+
+            // 발표 시점(2, 5, 8, 11월 초)을 기준으로 분기별 GDP 설정
+            if (year === 2026) {
+                if (month < 2 || (month === 2 && date < 1)) return 29.5; // 전년말 기준
+                if (month < 5 || (month === 5 && date < 1)) return 29.9; // 1분기 예상치 적용
+                if (month < 8 || (month === 8 && date < 1)) return 30.3; // 2분기 예상치 적용
+                if (month < 11 || (month === 11 && date < 1)) return 30.7; // 3분기 예상치 적용
+                return 31.1; // 4분기 예상치
+            }
+            return 29.8; // 기본값
+        }
+
         async function fetchData(url) {
             try {
-                const res = await fetch(`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`);
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
                 const data = await res.json();
-                return data;
+                return JSON.parse(data.contents);
             } catch (e) { return null; }
         }
 
@@ -131,7 +149,10 @@
             if(el) {
                 el.innerText = m.toFixed(2);
                 formatChange(m, BASE_US_MCAP, "US_MCAP");
-                const bft = (m/27.94*100).toFixed(1);
+                
+                // 분기별로 자동 계산된 GDP 분모 사용
+                const currentGDP = getBufferGDP();
+                const bft = (m/currentGDP*100).toFixed(1);
                 const bEl = document.getElementById("BUFFETT");
                 if(bEl) { 
                     bEl.innerText = bft + "%"; 
@@ -167,22 +188,24 @@
         }
 
         async function init() {
+            // 기준 데이터 VTI 우선 호출
             await getYahoo("VTI", "VTI_HIDDEN");
-            // 야후 목록에서 S&P500(^GSPC)을 제거했습니다.
+            await new Promise(r => setTimeout(r, 800));
+
+            // [우선순위 재배치] 요청하신 중요 지표를 앞줄에 세움
             const jobs = [
-                ["DX-Y.NYB","DXY"], ["^KS11","KOSPI"], ["GC=F","GOLD"], ["^TNX","US10Y"],
-                ["^IXIC","NASDAQ"], ["^DJI","DOW"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^IRX","US2Y"],
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^KQ11","KOSDAQ"], ["GC=F","GOLD"], ["^TNX","US10Y"],
+                ["^IXIC","NASDAQ"], ["^DJI","DOW"], ["^KS11","KOSPI"], ["^TYX","US30Y"], ["^IRX","US2Y"],
                 ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"], ["VIXY", "VIX"]
             ];
             
             for (const j of jobs) {
-                getYahoo(j[0], j[1]);
-                await new Promise(r => setTimeout(r, 800));
+                await getYahoo(j[0], j[1]);
+                await new Promise(r => setTimeout(r, 600)); // 추천 호출 간격 적용
             }
 
-            // 트웰브 목록에 S&P500(SPX)을 추가하여 총 8개를 맞췄습니다.
             const tdata_items = [
-                {s:"SPX", id:"SP500"}, {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
+                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
             ];
@@ -201,7 +224,7 @@
                         }
                     }
                 }).catch(e => console.error(item.id + " 로드 실패"));
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, 1200)); // 트웰브 데이터 간격 확보
             }
 
             fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
