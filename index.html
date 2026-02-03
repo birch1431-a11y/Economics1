@@ -70,4 +70,176 @@
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
         const BASE_US_MCAP = 62.5; 
-        const BASE
+        const BASE_KR_MCAP = 4660; 
+        let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
+
+        // [버핏지수 분모 자동 갱신 로직]
+        function getBufferGDP() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const date = now.getDate();
+
+            // 발표 시점(2, 5, 8, 11월 초)을 기준으로 분기별 GDP 설정
+            if (year === 2026) {
+                if (month < 2 || (month === 2 && date < 1)) return 29.5; // 전년말 기준
+                if (month < 5 || (month === 5 && date < 1)) return 29.9; // 1분기 예상치 적용
+                if (month < 8 || (month === 8 && date < 1)) return 30.3; // 2분기 예상치 적용
+                if (month < 11 || (month === 11 && date < 1)) return 30.7; // 3분기 예상치 적용
+                return 31.1; // 4분기 예상치
+            }
+            return 29.8; // 기본값
+        }
+
+        async function fetchData(url) {
+            try {
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                return JSON.parse(data.contents);
+            } catch (e) { return null; }
+        }
+
+        function formatChange(c, p, id) {
+            const diff = c - p, pct = (diff/p*100).toFixed(2);
+            const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
+            const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
+            const cEl = document.getElementById(id + "-c");
+            if(cEl) {
+                cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
+            }
+        }
+
+        async function getYahoo(ticker, id) {
+            try {
+                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
+                if (data && data.chart && data.chart.result) {
+                    const meta = data.chart.result[0].meta;
+                    const cur = meta.regularMarketPrice;
+                    const prev = meta.previousClose;
+                    const el = document.getElementById(id);
+
+                    if (el) {
+                        let displayVal = "";
+                        if (id === "SILVER") { displayVal = cur.toFixed(3); } 
+                        else if (id === "US30Y" || id === "US10Y" || id === "US2Y") { displayVal = cur.toFixed(2) + "%"; } 
+                        else { displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
+                        el.innerText = displayVal;
+                        formatChange(cur, prev, id);
+
+                        if (id === "VIX") {
+                            const pct = ((cur - prev) / prev * 100);
+                            if (pct >= 5) el.className = "value status-danger";
+                            else if (pct >= 2) el.className = "value status-warning";
+                            else el.className = "value status-safe";
+                        }
+                    }
+
+                    if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
+                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
+                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
+                    if(ticker === "VTI") updateUsMcap(cur, prev);
+                    updateKospiUsd();
+                }
+            } catch (err) { console.error(id + " 로드 실패"); }
+        }
+
+        function updateUsMcap(c, p) {
+            const m = BASE_US_MCAP * (c/p);
+            const el = document.getElementById("US_MCAP");
+            if(el) {
+                el.innerText = m.toFixed(2);
+                formatChange(m, BASE_US_MCAP, "US_MCAP");
+                
+                // 분기별로 자동 계산된 GDP 분모 사용
+                const currentGDP = getBufferGDP();
+                const bft = (m/currentGDP*100).toFixed(1);
+                const bEl = document.getElementById("BUFFETT");
+                if(bEl) { 
+                    bEl.innerText = bft + "%"; 
+                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
+                }
+            }
+        }
+
+        function updateKrMcap(c, p) {
+            const m = BASE_KR_MCAP * (c/p);
+            const el = document.getElementById("KR_MCAP");
+            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+        }
+
+        function updateKospiUsd() {
+            if(live.k && live.u) {
+                const c = live.k/live.u, p = live.kp/live.up;
+                const el = document.getElementById("KOSPI_USD");
+                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
+            }
+        }
+
+        function updateSpread() {
+            if(live.y10 && live.y2) {
+                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
+                const el = document.getElementById("SPREAD");
+                if(el) { 
+                    el.innerText = s.toFixed(2) + "%p"; 
+                    formatChange(s, sp, "SPREAD"); 
+                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
+                }
+            }
+        }
+
+        async function init() {
+            // 기준 데이터 VTI 우선 호출
+            await getYahoo("VTI", "VTI_HIDDEN");
+            await new Promise(r => setTimeout(r, 800));
+
+            // [우선순위 재배치] 요청하신 중요 지표를 앞줄에 세움
+            const jobs = [
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^KQ11","KOSDAQ"], ["GC=F","GOLD"], ["^TNX","US10Y"],
+                ["^IXIC","NASDAQ"], ["^DJI","DOW"], ["^KS11","KOSPI"], ["^TYX","US30Y"], ["^IRX","US2Y"],
+                ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"], ["VIXY", "VIX"]
+            ];
+            
+            for (const j of jobs) {
+                await getYahoo(j[0], j[1]);
+                await new Promise(r => setTimeout(r, 600)); // 추천 호출 간격 적용
+            }
+
+            const tdata_items = [
+                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
+                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
+                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
+            ];
+
+            for (const item of tdata_items) {
+                fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
+                .then(r=>r.json()).then(d=>{
+                    if(d && d.close){
+                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
+                        const el = document.getElementById(item.id);
+                        if(el) {
+                            if(item.id === "XRP") el.innerText = c.toFixed(4);
+                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, item.id);
+                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                        }
+                    }
+                }).catch(e => console.error(item.id + " 로드 실패"));
+                await new Promise(r => setTimeout(r, 1200)); // 트웰브 데이터 간격 확보
+            }
+
+            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
+                if(d && d.chart && d.chart.result) {
+                    const v = d.chart.result[0].meta.regularMarketPrice;
+                    const el = document.getElementById("SHILLER");
+                    if(el) { 
+                        el.innerText = v.toFixed(1); 
+                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
+                    }
+                }
+            });
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
