@@ -77,7 +77,6 @@
             try {
                 const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
                 const data = await res.json();
-                // 첫 번째 개선 사항 적용: data.contents 존재 여부 확인 후 파싱
                 if (data && data.contents) {
                     return JSON.parse(data.contents);
                 }
@@ -175,10 +174,23 @@
 
         async function init() {
             await getYahoo("VTI", "VTI_HIDDEN");
+            
+            // 요청하신 지표들을 우선 순위로 배치
             const jobs = [
-                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
-                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
+                ["DX-Y.NYB","DXY"],     // 달러지수
+                ["^GSPC","SP500"],      // S&P 500
+                ["^KS11","KOSPI"],      // KOSPI
+                ["GC=F","GOLD"],        // GOLD
+                ["SI=F","SILVER"],      // SILVER
+                ["^TNX","US10Y"],       // 미국채 10년
+                ["^IXIC","NASDAQ"], 
+                ["^DJI","DOW"],
+                ["^KQ11","KOSDAQ"], 
+                ["^TYX","US30Y"], 
+                ["^IRX","US2Y"],
+                ["HG=F","COPPER"], 
+                ["PL=F","PLATINUM"], 
+                ["CL=F","WTI"],
                 ["VIXY", "VIX"] 
             ];
             
