@@ -166,56 +166,72 @@
             }
         }
 
+        // 코인게코 전용 함수 추가
+        async function fetchCoinGecko() {
+            try {
+                const url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple&vs_currencies=usd&include_24hr_change=true";
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if(data) {
+                    updateCoinUI("BTC", data.bitcoin.usd, data.bitcoin.usd_24h_change);
+                    updateCoinUI("ETH", data.ethereum.usd, data.ethereum.usd_24h_change);
+                    updateCoinUI("XRP", data.ripple.usd, data.ripple.usd_24h_change);
+                }
+            } catch (e) { console.error("코인게코 로드 실패"); }
+        }
+
+        function updateCoinUI(id, price, changePct) {
+            const el = document.getElementById(id);
+            const cEl = document.getElementById(id + "-c");
+            if(el) {
+                el.innerText = price.toLocaleString(undefined, {minimumFractionDigits: id === "XRP" ? 4 : 2});
+                const sign = changePct > 0 ? "▲" : changePct < 0 ? "▼" : "";
+                const cls = changePct > 0 ? "up" : changePct < 0 ? "down" : "";
+                if(cEl) {
+                    cEl.innerHTML = `<span class="${cls}">${sign} (${Math.abs(changePct).toFixed(2)}%)</span>`;
+                }
+            }
+        }
+
         async function init() {
             await getYahoo("VTI", "VTI_HIDDEN");
-            const yahoo_jobs = [
-                ["DX-Y.NYB","DXY"], ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"], ["VIXY", "VIX"]
+            const jobs = [
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
+                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
+                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
+                ["VIXY", "VIX"]
             ];
             
-            for (const j of yahoo_jobs) {
+            for (const j of jobs) {
                 getYahoo(j[0], j[1]);
-                await new Promise(r => setTimeout(r, 150));
+                await new Promise(r => setTimeout(r, 200));
             }
 
-            // [Twelve Data] 환율 및 증시 지수 (S&P 500, NASDAQ, DOW 포함)
-            const tdata_symbols = "USD/KRW,JPY/KRW,EUR/KRW,CNY/KRW,SPX,IXIC,DJI";
-            const symbol_map = { "SPX":"SP500", "IXIC":"NASDAQ", "DJI":"DOW" };
+            // 외환만 TwelveData 사용 (BTC, ETH, XRP 제거됨)
+            const tdata_items = [
+                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
+                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"}
+            ];
 
-            fetch(`https://api.twelvedata.com/quote?symbol=${tdata_symbols}&apikey=${MY_API_KEY}`)
-            .then(r=>r.json()).then(data=>{
-                Object.keys(data).forEach(s => {
-                    const d = data[s];
+            for (const item of tdata_items) {
+                fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
+                .then(r=>r.json()).then(d=>{
                     if(d && d.close){
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        const targetId = symbol_map[s] || s;
-                        const el = document.getElementById(targetId);
+                        const el = document.getElementById(item.id);
                         if(el) {
                             el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, targetId);
-                            if(targetId === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                            formatChange(c, p, item.id);
+                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                         }
                     }
-                });
-            }).catch(e => console.error("Twelve Data 로드 실패"));
+                }).catch(e => console.error(item.id + " 로드 실패"));
+                await new Promise(r => setTimeout(r, 800));
+            }
 
-            // [CoinGecko] 가상자산 3종 (BTC, ETH, XRP)
-            fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple&vs_currencies=usd&include_24hr_change=true")
-            .then(r=>r.json()).then(d=>{
-                const coins = [
-                    {id:"BTC", key:"bitcoin"}, {id:"ETH", key:"ethereum"}, {id:"XRP", key:"ripple"}
-                ];
-                coins.forEach(coin => {
-                    const cur = d[coin.key].usd;
-                    const chg = d[coin.key].usd_24h_change;
-                    const prev = cur / (1 + chg/100);
-                    const el = document.getElementById(coin.id);
-                    if(el) {
-                        el.innerText = (coin.id === "XRP") ? cur.toFixed(4) : cur.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                        formatChange(cur, prev, coin.id);
-                    }
-                });
-            }).catch(e => console.error("가상자산 데이터 로드 실패"));
+            // 가상자산은 코인게코에서 가져오기
+            fetchCoinGecko();
 
             fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
                 if(d && d.chart && d.chart.result) {
