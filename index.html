@@ -76,17 +76,12 @@
         async function fetchData(url) {
             try {
                 const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-                if (!res.ok) throw new Error('Network res not ok');
                 const data = await res.json();
                 return JSON.parse(data.contents);
-            } catch (e) { 
-                console.error("Fetch error:", e);
-                return null; 
-            }
+            } catch (e) { return null; }
         }
 
         function formatChange(c, p, id) {
-            if (!c || !p) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
@@ -113,6 +108,7 @@
                         el.innerText = displayVal;
                         formatChange(cur, prev, id);
 
+                        // VIXY 전용 색상 로직 (VIX 지수 대용이므로 퍼센트 변화로 판단하는 것이 안정적)
                         if (id === "VIX") {
                             const pct = ((cur - prev) / prev * 100);
                             if (pct >= 5) el.className = "value status-danger";
@@ -171,35 +167,20 @@
             }
         }
 
-        async function fetchTwelveData(item) {
-            try {
-                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
-                const d = await res.json();
-                if(d && d.close){
-                    const c = parseFloat(d.close), p = parseFloat(d.previous_close);
-                    const el = document.getElementById(item.id);
-                    if(el) {
-                        if(item.id === "XRP") el.innerText = c.toFixed(4);
-                        else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                        formatChange(c, p, item.id);
-                        if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
-                    }
-                }
-            } catch (e) { console.error(item.id + " 로드 실패"); }
-        }
-
         async function init() {
-            // 1. 야후 파이낸스 데이터 병렬 로드 (속도 최적화)
-            const yahooJobs = [
-                ["VTI", "VTI_HIDDEN"], ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
+            await getYahoo("VTI", "VTI_HIDDEN");
+            const jobs = [
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
                 ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"], ["VIXY", "VIX"]
+                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
+                ["VIXY", "VIX"] // VIXY로 야후 리스트에 추가
             ];
             
-            // 병렬 처리
-            await Promise.all(yahooJobs.map(j => getYahoo(j[0], j[1])));
+            for (const j of jobs) {
+                getYahoo(j[0], j[1]);
+                await new Promise(r => setTimeout(r, 200));
+            }
 
-            // 2. TwelveData 항목 (무료 티어 제한 준수를 위해 순차 처리하되 에러 관리)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
@@ -207,11 +188,22 @@
             ];
 
             for (const item of tdata_items) {
-                await fetchTwelveData(item);
-                await new Promise(r => setTimeout(r, 850)); // 안정적인 호출 간격
+                fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
+                .then(r=>r.json()).then(d=>{
+                    if(d && d.close){
+                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
+                        const el = document.getElementById(item.id);
+                        if(el) {
+                            if(item.id === "XRP") el.innerText = c.toFixed(4);
+                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, item.id);
+                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                        }
+                    }
+                }).catch(e => console.error(item.id + " 로드 실패"));
+                await new Promise(r => setTimeout(r, 800));
             }
 
-            // 3. 쉴러 PER 별도 로드
             fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
                 if(d && d.chart && d.chart.result) {
                     const v = d.chart.result[0].meta.regularMarketPrice;
@@ -222,10 +214,8 @@
                     }
                 }
             });
-
-            document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
         }
-        
         window.onload = init;
     </script>
 </body>
