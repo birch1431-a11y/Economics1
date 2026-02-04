@@ -59,7 +59,7 @@
     <div class="item-row"><span class="label">XRP($)</span><div class="val-container"><span class="value" id="XRP">--</span><div class="change" id="XRP-c">--</div></div></div>
 
     <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
-    <div class="item-row"><span class="label">VIXY (변동성)</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
+    <div class="item-row"><span class="label">VIXY</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
     <div class="item-row"><span class="label">장단기 금리차</span><div class="val-container"><span class="value" id="SPREAD">--</span><div class="change" id="SPREAD-c">--</div></div></div>
     <div class="item-row"><span class="label">버핏 지수</span><span class="value" id="BUFFETT">--</span></div>
     <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
@@ -76,18 +76,17 @@
         async function fetchData(url) {
             try {
                 const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                if (!res.ok) throw new Error('Network res not ok');
                 const data = await res.json();
-                if (data && data.contents) {
-                    return JSON.parse(data.contents);
-                }
-                return null;
+                return JSON.parse(data.contents);
             } catch (e) { 
-                console.error("fetchData 에러:", e);
+                console.error("Fetch error:", e);
                 return null; 
             }
         }
 
         function formatChange(c, p, id) {
+            if (!c || !p) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
@@ -172,33 +171,35 @@
             }
         }
 
+        async function fetchTwelveData(item) {
+            try {
+                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
+                const d = await res.json();
+                if(d && d.close){
+                    const c = parseFloat(d.close), p = parseFloat(d.previous_close);
+                    const el = document.getElementById(item.id);
+                    if(el) {
+                        if(item.id === "XRP") el.innerText = c.toFixed(4);
+                        else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                        formatChange(c, p, item.id);
+                        if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                    }
+                }
+            } catch (e) { console.error(item.id + " 로드 실패"); }
+        }
+
         async function init() {
-            await getYahoo("VTI", "VTI_HIDDEN");
-            
-            // 데이터 호출 순서 우선 순위 조정
-            const jobs = [
-                ["DX-Y.NYB","DXY"],     // 달러지수
-                ["^GSPC","SP500"],      // S&P 500
-                ["GC=F","GOLD"],        // 금
-                ["SI=F","SILVER"],      // 은
-                ["^TNX","US10Y"],       // 미국채 10년
-                ["^KS11","KOSPI"], 
-                ["^IXIC","NASDAQ"], 
-                ["^DJI","DOW"],
-                ["^KQ11","KOSDAQ"], 
-                ["^TYX","US30Y"], 
-                ["^IRX","US2Y"],
-                ["HG=F","COPPER"], 
-                ["PL=F","PLATINUM"], 
-                ["CL=F","WTI"],
-                ["VIXY", "VIX"] 
+            // 1. 야후 파이낸스 데이터 병렬 로드 (속도 최적화)
+            const yahooJobs = [
+                ["VTI", "VTI_HIDDEN"], ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
+                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
+                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"], ["VIXY", "VIX"]
             ];
             
-            for (const j of jobs) {
-                getYahoo(j[0], j[1]);
-                await new Promise(r => setTimeout(r, 200));
-            }
+            // 병렬 처리
+            await Promise.all(yahooJobs.map(j => getYahoo(j[0], j[1])));
 
+            // 2. TwelveData 항목 (무료 티어 제한 준수를 위해 순차 처리하되 에러 관리)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
@@ -206,22 +207,11 @@
             ];
 
             for (const item of tdata_items) {
-                fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
-                .then(r=>r.json()).then(d=>{
-                    if(d && d.close){
-                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        const el = document.getElementById(item.id);
-                        if(el) {
-                            if(item.id === "XRP") el.innerText = c.toFixed(4);
-                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, item.id);
-                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
-                        }
-                    }
-                }).catch(e => console.error(item.id + " 로드 실패"));
-                await new Promise(r => setTimeout(r, 800));
+                await fetchTwelveData(item);
+                await new Promise(r => setTimeout(r, 850)); // 안정적인 호출 간격
             }
 
+            // 3. 쉴러 PER 별도 로드
             fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
                 if(d && d.chart && d.chart.result) {
                     const v = d.chart.result[0].meta.regularMarketPrice;
@@ -232,8 +222,10 @@
                     }
                 }
             });
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
+
+            document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
         }
+        
         window.onload = init;
     </script>
 </body>
