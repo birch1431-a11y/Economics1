@@ -166,60 +166,55 @@
             }
         }
 
+        // 코인게코 전용 함수 추가
         async function fetchCoinGecko() {
             try {
                 const url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple&vs_currencies=usd&include_24hr_change=true";
                 const res = await fetch(url);
                 const data = await res.json();
+                
                 if(data) {
-                    updateGenericUI("BTC", data.bitcoin.usd, data.bitcoin.usd_24h_change);
-                    updateGenericUI("ETH", data.ethereum.usd, data.ethereum.usd_24h_change);
-                    updateGenericUI("XRP", data.ripple.usd, data.ripple.usd_24h_change);
+                    updateCoinUI("BTC", data.bitcoin.usd, data.bitcoin.usd_24h_change);
+                    updateCoinUI("ETH", data.ethereum.usd, data.ethereum.usd_24h_change);
+                    updateCoinUI("XRP", data.ripple.usd, data.ripple.usd_24h_change);
                 }
             } catch (e) { console.error("코인게코 로드 실패"); }
         }
 
-        function updateGenericUI(id, cur, changePct) {
+        function updateCoinUI(id, price, changePct) {
             const el = document.getElementById(id);
             const cEl = document.getElementById(id + "-c");
             if(el) {
-                let prec = (id === "XRP") ? 4 : 2;
-                el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits: prec, maximumFractionDigits: prec});
+                el.innerText = price.toLocaleString(undefined, {minimumFractionDigits: id === "XRP" ? 4 : 2});
                 const sign = changePct > 0 ? "▲" : changePct < 0 ? "▼" : "";
                 const cls = changePct > 0 ? "up" : changePct < 0 ? "down" : "";
                 if(cEl) {
-                    const prev = cur / (1 + (changePct / 100));
-                    const diff = cur - prev;
-                    cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${Math.abs(changePct).toFixed(2)}%)</span>`;
+                    cEl.innerHTML = `<span class="${cls}">${sign} (${Math.abs(changePct).toFixed(2)}%)</span>`;
                 }
             }
         }
 
         async function init() {
             await getYahoo("VTI", "VTI_HIDDEN");
-            
-            // 야후 호출 목록 (S&P 500, 나스닥, 은, WTI 포함)
-            const yahooJobs = [
-                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"], 
-                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], 
-                ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
+            const jobs = [
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
+                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
+                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
                 ["VIXY", "VIX"]
             ];
             
-            for (const j of yahooJobs) {
+            for (const j of jobs) {
                 getYahoo(j[0], j[1]);
-                await new Promise(r => setTimeout(r, 500)); // 지연시간을 500ms로 늘려 안정성 확보
+                await new Promise(r => setTimeout(r, 200));
             }
 
-            // Twelve Data 호출 목록 (가장 안정적인 외환 4종 + 금 1종)
-            const tdataItems = [
+            // 외환만 TwelveData 사용 (BTC, ETH, XRP 제거됨)
+            const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
-                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"XAU/USD", id:"GOLD"}
+                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"}
             ];
 
-            for (const item of tdataItems) {
+            for (const item of tdata_items) {
                 fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
                 .then(r=>r.json()).then(d=>{
                     if(d && d.close){
@@ -232,9 +227,10 @@
                         }
                     }
                 }).catch(e => console.error(item.id + " 로드 실패"));
-                await new Promise(r => setTimeout(r, 1000)); // 트웰브데이터 1분 8회 제한 준수
+                await new Promise(r => setTimeout(r, 800));
             }
 
+            // 가상자산은 코인게코에서 가져오기
             fetchCoinGecko();
 
             fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
