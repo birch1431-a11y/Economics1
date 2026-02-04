@@ -183,7 +183,8 @@
             const el = document.getElementById(id);
             const cEl = document.getElementById(id + "-c");
             if(el) {
-                el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits: id === "XRP" ? 4 : 2});
+                let precision = (id === "XRP") ? 4 : 2;
+                el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits: precision, maximumFractionDigits: precision});
                 const sign = changePct > 0 ? "▲" : changePct < 0 ? "▼" : "";
                 const cls = changePct > 0 ? "up" : changePct < 0 ? "down" : "";
                 if(cEl) {
@@ -197,11 +198,12 @@
         async function init() {
             await getYahoo("VTI", "VTI_HIDDEN");
             
-            // 야후 호출 목록 (S&P 500, NASDAQ, 금 제외)
+            // 야후 호출 목록 (은, WTI 제외하여 야후 부담 감소)
             const yahooJobs = [
-                ["DX-Y.NYB","DXY"], ["^DJI","DOW"], ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], 
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"], 
+                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], 
                 ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
+                ["HG=F","COPPER"], ["PL=F","PLATINUM"], 
                 ["VIXY", "VIX"]
             ];
             
@@ -210,11 +212,11 @@
                 await new Promise(r => setTimeout(r, 200));
             }
 
-            // Twelve Data 호출 목록 (외환 + 지수 지표 + 금 현물 지표)
+            // Twelve Data 호출 목록 (외환 4개 + 금, 은, WTI 현물 총 7개)
             const tdataItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"SPX", id:"SP500"}, {s:"IXIC", id:"NASDAQ"}, {s:"XAU/USD", id:"GOLD"}
+                {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"}, {s:"WTI", id:"WTI"}
             ];
 
             for (const item of tdataItems) {
@@ -224,7 +226,8 @@
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
                         if(el) {
-                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            let prec = (item.id === "SILVER") ? 3 : 2;
+                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:prec, maximumFractionDigits:prec});
                             formatChange(c, p, item.id);
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                         }
