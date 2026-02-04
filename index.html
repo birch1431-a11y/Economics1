@@ -183,8 +183,8 @@
             const el = document.getElementById(id);
             const cEl = document.getElementById(id + "-c");
             if(el) {
-                let precision = (id === "XRP") ? 4 : 2;
-                el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits: precision, maximumFractionDigits: precision});
+                let prec = (id === "XRP") ? 4 : 2;
+                el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits: prec, maximumFractionDigits: prec});
                 const sign = changePct > 0 ? "▲" : changePct < 0 ? "▼" : "";
                 const cls = changePct > 0 ? "up" : changePct < 0 ? "down" : "";
                 if(cEl) {
@@ -198,25 +198,25 @@
         async function init() {
             await getYahoo("VTI", "VTI_HIDDEN");
             
-            // 야후 호출 목록 (은, WTI 제외하여 야후 부담 감소)
+            // 야후 호출 목록 (S&P 500, 나스닥, 은, WTI 포함)
             const yahooJobs = [
                 ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"], 
                 ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], 
                 ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["HG=F","COPPER"], ["PL=F","PLATINUM"], 
+                ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
                 ["VIXY", "VIX"]
             ];
             
             for (const j of yahooJobs) {
                 getYahoo(j[0], j[1]);
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 500)); // 지연시간을 500ms로 늘려 안정성 확보
             }
 
-            // Twelve Data 호출 목록 (외환 4개 + 금, 은, WTI 현물 총 7개)
+            // Twelve Data 호출 목록 (가장 안정적인 외환 4종 + 금 1종)
             const tdataItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"}, {s:"WTI", id:"WTI"}
+                {s:"XAU/USD", id:"GOLD"}
             ];
 
             for (const item of tdataItems) {
@@ -226,14 +226,13 @@
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
                         if(el) {
-                            let prec = (item.id === "SILVER") ? 3 : 2;
-                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:prec, maximumFractionDigits:prec});
+                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                         }
                     }
                 }).catch(e => console.error(item.id + " 로드 실패"));
-                await new Promise(r => setTimeout(r, 800));
+                await new Promise(r => setTimeout(r, 1000)); // 트웰브데이터 1분 8회 제한 준수
             }
 
             fetchCoinGecko();
