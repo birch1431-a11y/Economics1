@@ -73,6 +73,7 @@
         let live = { y10:0, y10p:0, y2:0, y2p:0 };
 
         function formatChange(c, p, id) {
+            if(!c || !p) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
@@ -113,22 +114,20 @@
             } catch (e) { console.error(id + " 실패"); }
         }
 
-        async function getStooq(symbol, id) {
+        async function getYahooIndex(symbol, id) {
             try {
-                // 원칙 2 반영: 지연 시세이지만 사실값인 Stooq 데이터 활용
-                const res = await fetch(`https://stooq.com/q/l/?s=${symbol}&f=sd2t2ohlcv&e=json`);
+                // 원칙 2 반영: 15분 지연 시세이지만 가장 확실한 사실값 경로
+                const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`);
                 const d = await res.json();
-                if (d.symbols && d.symbols[0]) {
-                    const s = d.symbols[0];
-                    const cur = parseFloat(s.close);
-                    const prev = parseFloat(s.open); // 임시 전일 종가 대용
-                    const el = document.getElementById(id);
-                    if (el && !isNaN(cur)) {
-                        el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2});
-                        formatChange(cur, prev, id);
-                    }
+                const meta = d.chart.result[0].meta;
+                const cur = meta.regularMarketPrice;
+                const prev = meta.previousClose;
+                const el = document.getElementById(id);
+                if (el && cur) {
+                    el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2});
+                    formatChange(cur, prev, id);
                 }
-            } catch (e) { console.error(id + " (Stooq) 실패"); }
+            } catch (e) { console.error(id + " (Yahoo) 실패"); }
         }
 
         function updateSpread() {
@@ -144,11 +143,11 @@
         }
 
         async function init() {
-            // 1. Twelve Data (환율 및 가상자산) - XRP 심볼 교정
+            // 1. Twelve Data (외환, 코인, 원자재)
             const t_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"},
                 {s:"CNY/KRW", id:"CNY/KRW"}, {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
-                {s:"XRP/USD", id:"XRP"} 
+                {s:"XRP/USD", id:"XRP"}, {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"}
             ];
 
             for (const item of t_items) {
@@ -160,15 +159,15 @@
                         formatChange(c, p, item.id);
                     }
                 }).catch(e => console.error(item.id + " 실패"));
-                await new Promise(r => setTimeout(r, 850));
+                await new Promise(r => setTimeout(r, 1000));
             }
 
-            // 2. Stooq 활용 (지수 데이터 확보)
-            const s_items = [
-                {s:"^SPX", id:"SP500"}, {s:"^NDQ", id:"NASDAQ"}, {s:"^DJI", id:"DOW"}, {s:"USDX", id:"DXY"}
+            // 2. Yahoo Finance (지수)
+            const y_items = [
+                {s:"^GSPC", id:"SP500"}, {s:"^IXIC", id:"NASDAQ"}, {s:"^DJI", id:"DOW"}, {s:"DX-Y.NYB", id:"DXY"}
             ];
-            for (const item of s_items) {
-                getStooq(item.s, item.id);
+            for (const item of y_items) {
+                getYahooIndex(item.s, item.id);
                 await new Promise(r => setTimeout(r, 1000));
             }
 
@@ -178,7 +177,7 @@
             ];
             for (const j of a_jobs) {
                 getAlpha(j.s, j.id, j.t);
-                await new Promise(r => setTimeout(r, 15000));
+                await new Promise(r => setTimeout(r, 10000));
             }
 
             document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
