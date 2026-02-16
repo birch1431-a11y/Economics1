@@ -69,7 +69,7 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const ALPHA_KEY = "YOUR_ALPHA_KEY"; //여기에 발급받은 키를 넣으세요
+        const ALPHA_KEY = "YOUR_ALPHA_KEY"; // 여기에 발급받은 Alpha Vantage 키를 넣으세요
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
@@ -93,7 +93,7 @@
                 const res = await fetch(url);
                 const d = await res.json();
                 const el = document.getElementById(id);
-                if (!el) return;
+                if (!el || !d) return;
 
                 if (type === "YIELD" && d.data && d.data.length > 1) {
                     const cur = parseFloat(d.data[0].value);
@@ -109,81 +109,55 @@
                     const cur = parseFloat(q["05. price"]);
                     const prev = parseFloat(q["08. previous close"]);
                     if (isNaN(cur)) return;
-                    el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2});
+                    el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
                     formatChange(cur, prev, id);
-                    if (id === "VIX") {
-                        const pct = ((cur - prev) / prev * 100);
-                        el.className = "value " + (pct >= 5 ? "status-danger" : pct >= 2 ? "status-warning" : "status-safe");
-                    }
                 }
             } catch (e) { console.error(id + " 실패"); }
-        }
-
-        function updateUsMcap(c, p) {
-            const m = BASE_US_MCAP * (c/p);
-            const el = document.getElementById("US_MCAP");
-            if(el) {
-                el.innerText = m.toFixed(2);
-                formatChange(m, BASE_US_MCAP, "US_MCAP");
-                const bft = (m/27.94*100).toFixed(1);
-                const bEl = document.getElementById("BUFFETT");
-                if(bEl) { 
-                    bEl.innerText = bft + "%"; 
-                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
-                }
-            }
-        }
-
-        function updateKrMcap(c, p) {
-            const m = BASE_KR_MCAP * (c/p);
-            const el = document.getElementById("KR_MCAP");
-            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
-        }
-
-        function updateKospiUsd() {
-            if(live.k && live.u) {
-                const c = live.k/live.u, p = live.kp/live.up;
-                const el = document.getElementById("KOSPI_USD");
-                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
-            }
         }
 
         function updateSpread() {
             if(live.y10 && live.y2) {
                 const s = live.y10-live.y2, sp = live.y10p-live.y2p;
                 const el = document.getElementById("SPREAD");
-                if(el) { el.innerText = s.toFixed(2) + "%p"; formatChange(s, sp, "SPREAD"); el.className = "value " + (s<0?"status-danger":"status-safe"); }
+                if(el) { 
+                    el.innerText = s.toFixed(2) + "%p"; 
+                    formatChange(s, sp, "SPREAD"); 
+                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
+                }
             }
         }
 
         async function init() {
-            // 1. Twelve Data (안정적 슬롯 7개)
+            // 1. Twelve Data (확실한 외환 및 지수 원값 요청)
+            // SPX, IXIC, DJI는 무료 플랜 권한에 따라 출력 여부가 결정됨 (유사 ETF 대체 로직 삭제)
             const t_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"},
-                {s:"SPY", id:"SP500"}, {s:"QQQ", id:"NASDAQ"}, {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}
+                {s:"CNY/KRW", id:"CNY/KRW"}, {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
+                {s:"SPX", id:"SP500"}, {s:"IXIC", id:"NASDAQ"}, {s:"DJI", id:"DOW"}
             ];
+
             for (const item of t_items) {
                 fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
                 .then(r=>r.json()).then(d=>{
-                    if(d && d.close){
+                    if(d && d.close && !d.code){ // d.code가 있으면 에러나 제한임
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         document.getElementById(item.id).innerText = c.toLocaleString(undefined,{minimumFractionDigits:2});
                         formatChange(c, p, item.id);
-                        if(item.id === "USD/KRW") { live.u=c; live.up=p; updateKospiUsd(); }
-                        if(item.id === "SP500") updateUsMcap(c, p);
+                        if(item.id === "USD/KRW") { live.u=c; live.up=p; }
                     }
-                });
+                }).catch(e => console.error(item.id + " 실패"));
                 await new Promise(r => setTimeout(r, 850));
             }
 
-            // 2. Alpha Vantage (금리 및 지표 - 10초 간격)
+            // 2. Alpha Vantage (금리 데이터 - 현재 검증된 유일한 사실값 통로)
             const a_jobs = [
-                {s:"10year", id:"US10Y", t:"YIELD"}, {s:"2year", id:"US2Y", t:"YIELD"}, 
-                {s:"30year", id:"US30Y", t:"YIELD"}, {s:"VIX", id:"VIX"}
+                {s:"10year", id:"US10Y", t:"YIELD"}, 
+                {s:"2year", id:"US2Y", t:"YIELD"}, 
+                {s:"30year", id:"US30Y", t:"YIELD"}
             ];
             for (const j of a_jobs) {
                 getAlpha(j.s, j.id, j.t);
-                await new Promise(r => setTimeout(r, 10000));
+                await new Promise(r => setTimeout(r, 15000)); // 분당 제한 엄수
             }
 
             document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
