@@ -69,10 +69,8 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const ALPHA_KEY = "YOUR_ALPHA_KEY"; // 여기에 발급받은 Alpha Vantage 키를 넣으세요
-        const BASE_US_MCAP = 62.5; 
-        const BASE_KR_MCAP = 4660; 
-        let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
+        const ALPHA_KEY = "YOUR_ALPHA_KEY"; 
+        let live = { y10:0, y10p:0, y2:0, y2p:0 };
 
         function formatChange(c, p, id) {
             const diff = c - p, pct = (diff/p*100).toFixed(2);
@@ -115,6 +113,24 @@
             } catch (e) { console.error(id + " 실패"); }
         }
 
+        async function getStooq(symbol, id) {
+            try {
+                // 원칙 2 반영: 지연 시세이지만 사실값인 Stooq 데이터 활용
+                const res = await fetch(`https://stooq.com/q/l/?s=${symbol}&f=sd2t2ohlcv&e=json`);
+                const d = await res.json();
+                if (d.symbols && d.symbols[0]) {
+                    const s = d.symbols[0];
+                    const cur = parseFloat(s.close);
+                    const prev = parseFloat(s.open); // 임시 전일 종가 대용
+                    const el = document.getElementById(id);
+                    if (el && !isNaN(cur)) {
+                        el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2});
+                        formatChange(cur, prev, id);
+                    }
+                }
+            } catch (e) { console.error(id + " (Stooq) 실패"); }
+        }
+
         function updateSpread() {
             if(live.y10 && live.y2) {
                 const s = live.y10-live.y2, sp = live.y10p-live.y2p;
@@ -128,36 +144,41 @@
         }
 
         async function init() {
-            // 1. Twelve Data (확실한 외환 및 지수 원값 요청)
-            // SPX, IXIC, DJI는 무료 플랜 권한에 따라 출력 여부가 결정됨 (유사 ETF 대체 로직 삭제)
+            // 1. Twelve Data (환율 및 가상자산) - XRP 심볼 교정
             const t_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"},
                 {s:"CNY/KRW", id:"CNY/KRW"}, {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
-                {s:"SPX", id:"SP500"}, {s:"IXIC", id:"NASDAQ"}, {s:"DJI", id:"DOW"}
+                {s:"XRP/USD", id:"XRP"} 
             ];
 
             for (const item of t_items) {
                 fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
                 .then(r=>r.json()).then(d=>{
-                    if(d && d.close && !d.code){ // d.code가 있으면 에러나 제한임
+                    if(d && d.close && !d.code){
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         document.getElementById(item.id).innerText = c.toLocaleString(undefined,{minimumFractionDigits:2});
                         formatChange(c, p, item.id);
-                        if(item.id === "USD/KRW") { live.u=c; live.up=p; }
                     }
                 }).catch(e => console.error(item.id + " 실패"));
                 await new Promise(r => setTimeout(r, 850));
             }
 
-            // 2. Alpha Vantage (금리 데이터 - 현재 검증된 유일한 사실값 통로)
+            // 2. Stooq 활용 (지수 데이터 확보)
+            const s_items = [
+                {s:"^SPX", id:"SP500"}, {s:"^NDQ", id:"NASDAQ"}, {s:"^DJI", id:"DOW"}, {s:"USDX", id:"DXY"}
+            ];
+            for (const item of s_items) {
+                getStooq(item.s, item.id);
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            // 3. Alpha Vantage (국채 금리)
             const a_jobs = [
-                {s:"10year", id:"US10Y", t:"YIELD"}, 
-                {s:"2year", id:"US2Y", t:"YIELD"}, 
-                {s:"30year", id:"US30Y", t:"YIELD"}
+                {s:"10year", id:"US10Y", t:"YIELD"}, {s:"2year", id:"US2Y", t:"YIELD"}, {s:"30year", id:"US30Y", t:"YIELD"}
             ];
             for (const j of a_jobs) {
                 getAlpha(j.s, j.id, j.t);
-                await new Promise(r => setTimeout(r, 15000)); // 분당 제한 엄수
+                await new Promise(r => setTimeout(r, 15000));
             }
 
             document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
