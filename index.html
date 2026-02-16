@@ -83,18 +83,32 @@
             }
         }
 
-        async function getAlpha(symbol, id, type = "QUOTE") {
+        // 1. 가상자산 전용 (CoinGecko - 키 불필요, Twelve Data 부하 경감)
+        async function getCrypto() {
             try {
-                let url = type === "YIELD" 
-                    ? `https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=${symbol}&apikey=${ALPHA_KEY}`
-                    : `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_KEY}`;
+                const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple&vs_currencies=usd&include_24hr_change=true");
+                const d = await res.json();
+                const coins = [
+                    {id:"BTC", k:"bitcoin"}, {id:"ETH", k:"ethereum"}, {id:"XRP", k:"ripple"}
+                ];
+                coins.forEach(c => {
+                    const price = d[c.k].usd;
+                    const change = d[c.k].usd_24h_change;
+                    const prev = price / (1 + (change / 100));
+                    document.getElementById(c.id).innerText = price.toLocaleString(undefined, {minimumFractionDigits:2});
+                    formatChange(price, prev, c.id);
+                });
+            } catch (e) { console.error("코인 데이터 실패"); }
+        }
 
+        // 2. 금리 전용 (Alpha Vantage - 15초 간격 정밀 호출)
+        async function getAlpha(symbol, id, type = "YIELD") {
+            try {
+                const url = `https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=${symbol}&apikey=${ALPHA_KEY}`;
                 const res = await fetch(url);
                 const d = await res.json();
                 const el = document.getElementById(id);
-                if (!el || !d) return;
-
-                if (type === "YIELD" && d.data && d.data.length > 1) {
+                if (d.data && d.data.length > 1) {
                     const cur = parseFloat(d.data[0].value);
                     const prev = parseFloat(d.data[1].value);
                     if(!isNaN(cur)) {
@@ -104,7 +118,7 @@
                         if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
                     }
                 }
-            } catch (e) { console.error(id + " 실패"); }
+            } catch (e) { console.error(id + " 금리 실패"); }
         }
 
         function updateSpread() {
@@ -120,11 +134,22 @@
         }
 
         async function init() {
-            // 1. Twelve Data (외환, 코인 + 금/은 원자재 복구)
+            // [교통 정리 1단계] 코인 데이터 먼저 가져오기 (API 키 소모 없음)
+            getCrypto();
+
+            // [교통 정리 2단계] 금리 호출 시작 (순차적 15초 간격)
+            const a_jobs = [{s:"10year", id:"US10Y"}, {s:"2year", id:"US2Y"}, {s:"30year", id:"US30Y"}];
+            for (const j of a_jobs) {
+                getAlpha(j.s, j.id);
+                await new Promise(r => setTimeout(r, 15000));
+            }
+
+            // [교통 정리 3단계] Twelve Data (외환, 원자재, 지수 슬롯 확보)
+            // 코인을 빼서 공간이 생겼으므로 은(XAG)과 지수(SPX) 유입 가능성이 높아짐
             const t_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"},
-                {s:"CNY/KRW", id:"CNY/KRW"}, {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
-                {s:"XRP/USD", id:"XRP"}, {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"}
+                {s:"CNY/KRW", id:"CNY/KRW"}, {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"},
+                {s:"SPX", id:"SP500"}, {s:"DX-Y", id:"DXY"}
             ];
 
             for (const item of t_items) {
@@ -136,21 +161,10 @@
                         formatChange(c, p, item.id);
                     }
                 }).catch(e => console.error(item.id + " 실패"));
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, 1500)); 
             }
 
-            // 2. Alpha Vantage (국채 금리)
-            const a_jobs = [
-                {s:"10year", id:"US10Y", t:"YIELD"}, 
-                {s:"2year", id:"US2Y", t:"YIELD"}, 
-                {s:"30year", id:"US30Y", t:"YIELD"}
-            ];
-            for (const j of a_jobs) {
-                getAlpha(j.s, j.id, j.t);
-                await new Promise(r => setTimeout(r, 20000));
-            }
-
-            document.getElementById('status-msg').innerText = "최종 업데이트 완료: " + new Date().toLocaleTimeString();
+            document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString();
         }
         window.onload = init;
     </script>
