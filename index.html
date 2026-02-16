@@ -69,7 +69,7 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const ALPHA_KEY = "NG255JZSTJEJFW4I"; //여기에 발급받은 Alpha Vantage 키를 넣으세요
+        const ALPHA_KEY = "YOUR_ALPHA_KEY"; // 여기에 발급받은 Alpha Vantage 키를 넣으세요.
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
@@ -89,12 +89,9 @@
                 let url = "";
                 if (type === "YIELD") {
                     url = `https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=${symbol}&apikey=${ALPHA_KEY}`;
-                } else if (type === "COMMODITY") {
-                    url = `https://www.alphavantage.co/query?function=${symbol}&interval=monthly&apikey=${ALPHA_KEY}`;
                 } else {
                     url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_KEY}`;
                 }
-
                 const res = await fetch(url);
                 const d = await res.json();
                 const el = document.getElementById(id);
@@ -107,33 +104,33 @@
                     formatChange(cur, prev, id);
                     if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
                     if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
-                } else if (type === "COMMODITY" && d.data) {
-                    const cur = parseFloat(d.data[0].value);
-                    const prev = parseFloat(d.data[1].value);
-                    el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                    formatChange(cur, prev, id);
                 } else if (d["Global Quote"]) {
                     const q = d["Global Quote"];
                     const cur = parseFloat(q["05. price"]);
                     const prev = parseFloat(q["08. previous close"]);
                     if (isNaN(cur)) return;
-
-                    let displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                    if (id === "SILVER") displayVal = cur.toFixed(3);
-                    
-                    el.innerText = displayVal;
+                    el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
                     formatChange(cur, prev, id);
-
-                    if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
-                    if(symbol === "VTI") updateUsMcap(cur, prev);
-                    
                     if (id === "VIX") {
                         const pct = ((cur - prev) / prev * 100);
-                        if (pct >= 5) el.className = "value status-danger";
-                        else if (pct >= 2) el.className = "value status-warning";
-                        else el.className = "value status-safe";
+                        el.className = "value " + (pct >= 5 ? "status-danger" : pct >= 2 ? "status-warning" : "status-safe");
                     }
-                    updateKospiUsd();
+                }
+            } catch (e) { console.error(id + " 로드 실패"); }
+        }
+
+        async function getCoin(coinId, id) {
+            try {
+                const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true`);
+                const d = await res.json();
+                const data = d[coinId];
+                const el = document.getElementById(id);
+                if (el && data) {
+                    const cur = data.usd;
+                    const changePct = data.usd_24h_change;
+                    const prev = cur / (1 + (changePct / 100));
+                    el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits: id === "XRP" ? 4 : 2});
+                    formatChange(cur, prev, id);
                 }
             } catch (e) { console.error(id + " 로드 실패"); }
         }
@@ -180,45 +177,42 @@
         }
 
         async function init() {
-            // 1. Twelve Data (기존 로직 유지)
-            const tdata_items = [
-                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
-                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
+            // 1. Twelve Data (핵심 지수 및 환율)
+            const t_items = [
+                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"},
+                {s:"SPX", id:"SP500"}, {s:"IXIC", id:"NASDAQ"}, {s:"DJI", id:"DOW"}, {s:"KOSPI", id:"KOSPI"}
             ];
-
-            for (const item of tdata_items) {
+            for (const item of t_items) {
                 fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
                 .then(r=>r.json()).then(d=>{
                     if(d && d.close){
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        const el = document.getElementById(item.id);
-                        if(el) {
-                            if(item.id === "XRP") el.innerText = c.toFixed(4);
-                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, item.id);
-                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
-                        }
+                        document.getElementById(item.id).innerText = c.toLocaleString(undefined,{minimumFractionDigits:2});
+                        formatChange(c, p, item.id);
+                        if(item.id === "KOSPI") { live.k=c; live.kp=p; updateKrMcap(c, p); }
+                        if(item.id === "USD/KRW") { live.u=c; live.up=p; updateKospiUsd(); }
+                        if(item.id === "SP500") updateUsMcap(c, p);
                     }
-                }).catch(e => console.error(item.id + " 로드 실패"));
+                });
                 await new Promise(r => setTimeout(r, 850));
             }
 
-            // 2. Alpha Vantage (분당 5회 제한에 맞춰 15초 간격 로드)
-            const alphaJobs = [
-                {s:"VTI", id:"VTI_HIDDEN"}, {s:"DX-Y", id:"DXY"}, {s:"SPY", id:"SP500"}, {s:"QQQ", id:"NASDAQ"}, {s:"DIA", id:"DOW"},
-                {s:"^KS11", id:"KOSPI"}, {s:"^KQ11", id:"KOSDAQ"},
-                {s:"30year", id:"US30Y", t:"YIELD"}, {s:"10year", id:"US10Y", t:"YIELD"}, {s:"2year", id:"US2Y", t:"YIELD"},
-                {s:"WTI", id:"WTI", t:"COMMODITY"}, {s:"COPPER", id:"COPPER", t:"COMMODITY"},
-                {s:"VIX", id:"VIX"}
+            // 2. 가상자산 (CoinGecko - 즉시 로드)
+            getCoin("bitcoin", "BTC");
+            getCoin("ethereum", "ETH");
+            getCoin("ripple", "XRP");
+
+            // 3. Alpha Vantage (금리 및 특수 지표 - 8초 간격)
+            const a_jobs = [
+                {s:"10year", id:"US10Y", t:"YIELD"}, {s:"2year", id:"US2Y", t:"YIELD"}, 
+                {s:"30year", id:"US30Y", t:"YIELD"}, {s:"VIX", id:"VIX"}
             ];
-            
-            for (const j of alphaJobs) {
-                getAlpha(j.s, j.id, j.t || "QUOTE");
-                await new Promise(r => setTimeout(r, 15000)); 
+            for (const j of a_jobs) {
+                getAlpha(j.s, j.id, j.t);
+                await new Promise(r => setTimeout(r, 8000));
             }
 
-            document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
+            document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString();
         }
         window.onload = init;
     </script>
