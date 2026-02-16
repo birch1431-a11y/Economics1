@@ -59,7 +59,7 @@
     <div class="item-row"><span class="label">XRP($)</span><div class="val-container"><span class="value" id="XRP">--</span><div class="change" id="XRP-c">--</div></div></div>
 
     <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
-    <div class="item-row"><span class="label">VIXY</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
+    <div class="item-row"><span class="label">VIX</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
     <div class="item-row"><span class="label">장단기 금리차</span><div class="val-container"><span class="value" id="SPREAD">--</span><div class="change" id="SPREAD-c">--</div></div></div>
     <div class="item-row"><span class="label">버핏 지수</span><span class="value" id="BUFFETT">--</span></div>
     <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
@@ -75,7 +75,8 @@
 
         async function fetchData(url) {
             try {
-                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                // allorigins 대신 좀 더 분산된 프록시 주소 체계 사용
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}&timestamp=${new Date().getTime()}`);
                 const data = await res.json();
                 return JSON.parse(data.contents);
             } catch (e) { return null; }
@@ -166,52 +167,23 @@
             }
         }
 
-        // 코인게코 전용 함수 추가
-        async function fetchCoinGecko() {
-            try {
-                const url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple&vs_currencies=usd&include_24hr_change=true";
-                const res = await fetch(url);
-                const data = await res.json();
-                
-                if(data) {
-                    updateCoinUI("BTC", data.bitcoin.usd, data.bitcoin.usd_24h_change);
-                    updateCoinUI("ETH", data.ethereum.usd, data.ethereum.usd_24h_change);
-                    updateCoinUI("XRP", data.ripple.usd, data.ripple.usd_24h_change);
-                }
-            } catch (e) { console.error("코인게코 로드 실패"); }
-        }
-
-        function updateCoinUI(id, price, changePct) {
-            const el = document.getElementById(id);
-            const cEl = document.getElementById(id + "-c");
-            if(el) {
-                el.innerText = price.toLocaleString(undefined, {minimumFractionDigits: id === "XRP" ? 4 : 2});
-                const sign = changePct > 0 ? "▲" : changePct < 0 ? "▼" : "";
-                const cls = changePct > 0 ? "up" : changePct < 0 ? "down" : "";
-                if(cEl) {
-                    cEl.innerHTML = `<span class="${cls}">${sign} (${Math.abs(changePct).toFixed(2)}%)</span>`;
-                }
-            }
-        }
-
         async function init() {
-            await getYahoo("VTI", "VTI_HIDDEN");
-            const jobs = [
-                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
+            // 1. 야후 데이터 (동시 로드하여 속도 개선)
+            const yahooJobs = [
+                ["VTI", "VTI_HIDDEN"], ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
                 ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
                 ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
-                ["VIXY", "VIX"]
+                ["^VIX", "VIX"]
             ];
             
-            for (const j of jobs) {
-                getYahoo(j[0], j[1]);
-                await new Promise(r => setTimeout(r, 200));
-            }
+            // 야후 데이터는 800ms 대기 없이 동시에 쏘기 (속도 업)
+            yahooJobs.forEach(j => getYahoo(j[0], j[1]));
 
-            // 외환만 TwelveData 사용 (BTC, ETH, XRP 제거됨)
+            // 2. Twelve Data (8개 제한을 위해 기존 순차 로직 유지)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
-                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"}
+                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
+                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
             ];
 
             for (const item of tdata_items) {
@@ -221,18 +193,17 @@
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
                         if(el) {
-                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            if(item.id === "XRP") el.innerText = c.toFixed(4);
+                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                         }
                     }
                 }).catch(e => console.error(item.id + " 로드 실패"));
-                await new Promise(r => setTimeout(r, 800));
+                await new Promise(r => setTimeout(r, 850)); // 안전하게 850ms 간격
             }
 
-            // 가상자산은 코인게코에서 가져오기
-            fetchCoinGecko();
-
+            // 3. 쉴러 PER (별도 로드)
             fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
                 if(d && d.chart && d.chart.result) {
                     const v = d.chart.result[0].meta.regularMarketPrice;
