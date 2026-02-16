@@ -69,18 +69,10 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
+        const ALPHA_KEY = "NG255JZSTJEJFW4I"; //여기에 발급받은 Alpha Vantage 키를 넣으세요
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
-
-        async function fetchData(url) {
-            try {
-                // allorigins 대신 좀 더 분산된 프록시 주소 체계 사용
-                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}&timestamp=${new Date().getTime()}`);
-                const data = await res.json();
-                return JSON.parse(data.contents);
-            } catch (e) { return null; }
-        }
 
         function formatChange(c, p, id) {
             const diff = c - p, pct = (diff/p*100).toFixed(2);
@@ -92,38 +84,58 @@
             }
         }
 
-        async function getYahoo(ticker, id) {
+        async function getAlpha(symbol, id, type = "QUOTE") {
             try {
-                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
-                if (data && data.chart && data.chart.result) {
-                    const meta = data.chart.result[0].meta;
-                    const cur = meta.regularMarketPrice;
-                    const prev = meta.previousClose;
-                    const el = document.getElementById(id);
+                let url = "";
+                if (type === "YIELD") {
+                    url = `https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=${symbol}&apikey=${ALPHA_KEY}`;
+                } else if (type === "COMMODITY") {
+                    url = `https://www.alphavantage.co/query?function=${symbol}&interval=monthly&apikey=${ALPHA_KEY}`;
+                } else {
+                    url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_KEY}`;
+                }
 
-                    if (el) {
-                        let displayVal = "";
-                        if (id === "SILVER") { displayVal = cur.toFixed(3); } 
-                        else if (id === "US30Y" || id === "US10Y" || id === "US2Y") { displayVal = cur.toFixed(2) + "%"; } 
-                        else { displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
-                        el.innerText = displayVal;
-                        formatChange(cur, prev, id);
+                const res = await fetch(url);
+                const d = await res.json();
+                const el = document.getElementById(id);
+                if (!el) return;
 
-                        if (id === "VIX") {
-                            const pct = ((cur - prev) / prev * 100);
-                            if (pct >= 5) el.className = "value status-danger";
-                            else if (pct >= 2) el.className = "value status-warning";
-                            else el.className = "value status-safe";
-                        }
-                    }
-
-                    if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
+                if (type === "YIELD" && d.data) {
+                    const cur = parseFloat(d.data[0].value);
+                    const prev = parseFloat(d.data[1].value);
+                    el.innerText = cur.toFixed(2) + "%";
+                    formatChange(cur, prev, id);
                     if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
                     if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
-                    if(ticker === "VTI") updateUsMcap(cur, prev);
+                } else if (type === "COMMODITY" && d.data) {
+                    const cur = parseFloat(d.data[0].value);
+                    const prev = parseFloat(d.data[1].value);
+                    el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                    formatChange(cur, prev, id);
+                } else if (d["Global Quote"]) {
+                    const q = d["Global Quote"];
+                    const cur = parseFloat(q["05. price"]);
+                    const prev = parseFloat(q["08. previous close"]);
+                    if (isNaN(cur)) return;
+
+                    let displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                    if (id === "SILVER") displayVal = cur.toFixed(3);
+                    
+                    el.innerText = displayVal;
+                    formatChange(cur, prev, id);
+
+                    if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
+                    if(symbol === "VTI") updateUsMcap(cur, prev);
+                    
+                    if (id === "VIX") {
+                        const pct = ((cur - prev) / prev * 100);
+                        if (pct >= 5) el.className = "value status-danger";
+                        else if (pct >= 2) el.className = "value status-warning";
+                        else el.className = "value status-safe";
+                    }
                     updateKospiUsd();
                 }
-            } catch (err) { console.error(id + " 로드 실패"); }
+            } catch (e) { console.error(id + " 로드 실패"); }
         }
 
         function updateUsMcap(c, p) {
@@ -168,18 +180,7 @@
         }
 
         async function init() {
-            // 1. 야후 데이터 (동시 로드하여 속도 개선)
-            const yahooJobs = [
-                ["VTI", "VTI_HIDDEN"], ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
-                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
-                ["^VIX", "VIX"]
-            ];
-            
-            // 야후 데이터는 800ms 대기 없이 동시에 쏘기 (속도 업)
-            yahooJobs.forEach(j => getYahoo(j[0], j[1]));
-
-            // 2. Twelve Data (8개 제한을 위해 기존 순차 로직 유지)
+            // 1. Twelve Data (기존 로직 유지)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
@@ -200,21 +201,24 @@
                         }
                     }
                 }).catch(e => console.error(item.id + " 로드 실패"));
-                await new Promise(r => setTimeout(r, 850)); // 안전하게 850ms 간격
+                await new Promise(r => setTimeout(r, 850));
             }
 
-            // 3. 쉴러 PER (별도 로드)
-            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
-                if(d && d.chart && d.chart.result) {
-                    const v = d.chart.result[0].meta.regularMarketPrice;
-                    const el = document.getElementById("SHILLER");
-                    if(el) { 
-                        el.innerText = v.toFixed(1); 
-                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
-                    }
-                }
-            });
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
+            // 2. Alpha Vantage (분당 5회 제한에 맞춰 15초 간격 로드)
+            const alphaJobs = [
+                {s:"VTI", id:"VTI_HIDDEN"}, {s:"DX-Y", id:"DXY"}, {s:"SPY", id:"SP500"}, {s:"QQQ", id:"NASDAQ"}, {s:"DIA", id:"DOW"},
+                {s:"^KS11", id:"KOSPI"}, {s:"^KQ11", id:"KOSDAQ"},
+                {s:"30year", id:"US30Y", t:"YIELD"}, {s:"10year", id:"US10Y", t:"YIELD"}, {s:"2year", id:"US2Y", t:"YIELD"},
+                {s:"WTI", id:"WTI", t:"COMMODITY"}, {s:"COPPER", id:"COPPER", t:"COMMODITY"},
+                {s:"VIX", id:"VIX"}
+            ];
+            
+            for (const j of alphaJobs) {
+                getAlpha(j.s, j.id, j.t || "QUOTE");
+                await new Promise(r => setTimeout(r, 15000)); 
+            }
+
+            document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
         }
         window.onload = init;
     </script>
