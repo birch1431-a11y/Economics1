@@ -1,32 +1,85 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🔄 글로벌 경제 상황판</title>
-<style>
-body { background:#121212; color:#e0e0e0; font-family:-apple-system,sans-serif; padding:15px; margin:0;}
-.header { text-align:center;font-size:1.1rem;font-weight:bold;margin-bottom:25px;color:#c5a059;cursor:pointer;padding:10px;border:1px solid #444;border-radius:8px;}
-.hr-short{border:0;border-top:2px solid #c5a059;width:30px;margin:5px 0 10px 0;}
-.category{margin-top:25px;font-size:0.95rem;color:#fff;font-weight:bold;}
-.item-row{display:flex;justify-content:space-between;align-items:center;padding:10px 5px;border-bottom:1px solid #222;}
-.label{font-size:0.95rem;color:#bbb;}
-.val-container{text-align:right;}
-.value{font-size:1rem;font-weight:600;color:#fff;display:block;}
-.change{font-size:0.75rem;margin-top:2px;}
-.up{color:#ff4444;} .down{color:#4488ff;}
-.footer-copy{text-align:center;font-size:0.7rem;color:#555;margin:40px 0 10px 0;border-top:1px solid #222;padding-top:20px;}
-</style>
-</head>
-<body>
+<script>
+    const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341"; // Twelve Data
+    const AV_API_KEY = "NG255JZSTJEJFW4I"; // Alpha Vantage
+    const BASE_US_MCAP = 62.5; 
+    const BASE_KR_MCAP = 4660; 
+    let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0 };
 
-<div class="header" onclick="location.reload()">🔄 글로벌 경제 상황판</div>
+    async function fetchData(url) {
+        try {
+            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+            const data = await res.json();
+            return JSON.parse(data.contents);
+        } catch (e) { return null; }
+    }
 
-<div class="category">외환</div><hr class="hr-short">
-<div class="item-row"><span class="label">달러지수</span><span class="value" id="DXY">--</span></div>
-<div class="item-row"><span class="label">원/달러</span><span class="value" id="USD/KRW">--</span></div>
-<div class="item-row"><span class="label">원/엔</span><span class="value" id="JPY/KRW">--</span></div>
+    function formatChange(c, p, id) {
+        const diff = c - p, pct = (diff/p*100).toFixed(2);
+        const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
+        const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
+        const cEl = document.getElementById(id + "-c");
+        if(cEl) {
+            cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
+        }
+    }
 
-<div class="category">주요 증시지표</div><hr class="hr-short">
-<div class="item-row"><span class="label">S&P 500</span><span class="value" id="SP500">--</span></div>
-<div class="item-row"><span class="label">NASDAQ</span><span class="va
+    function updateKrMcap(c, p) {
+        const m = BASE_KR_MCAP * (c/p);
+        const el = document.getElementById("KR_MCAP");
+        if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+    }
+
+    function updateKospiUsd() {
+        if(live.k && live.u) {
+            const c = live.k/live.u, p = live.kp/live.up;
+            const el = document.getElementById("KOSPI_USD");
+            if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
+        }
+    }
+
+    function updateSpread() {
+        if(live.y10 && live.y2) {
+            const s = live.y10-live.y2, sp = live.y10p-live.y2p;
+            const el = document.getElementById("SPREAD");
+            if(el) { 
+                el.innerText = s.toFixed(2) + "%p"; 
+                formatChange(s, sp, "SPREAD"); 
+                el.className = "value " + (s<0?"status-danger":"status-safe"); 
+            }
+        }
+    }
+
+    async function init() {
+        const tdata_items = [
+            {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
+            {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
+            {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"},
+            {s:"GOLD", id:"GOLD"}, {s:"SILVER", id:"SILVER"}, {s:"COPPER", id:"COPPER"},
+            {s:"PLATINUM", id:"PLATINUM"}, {s:"WTI", id:"WTI"}, {s:"VIXY", id:"VIX"}
+        ];
+
+        // Twelve Data 우선 7~8개 지표만 fetch (핵심 지표)
+        for (const item of tdata_items.slice(0,8)) {
+            fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
+            .then(r=>r.json()).then(d=>{
+                if(d && d.close){
+                    const c=parseFloat(d.close), p=parseFloat(d.previous_close);
+                    const el = document.getElementById(item.id);
+                    if(el) {
+                        if(item.id === "XRP") el.innerText = c.toFixed(4);
+                        else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                        formatChange(c, p, item.id);
+                        if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                    }
+                }
+            }).catch(e => console.error(item.id + " 로드 실패"));
+            await new Promise(r => setTimeout(r, 800));
+        }
+
+        // Alpha Vantage → 부족 지표만 fetch (추후 연결)
+        // 예: US10Y, S&P500 등
+
+        setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
+    }
+
+    window.
