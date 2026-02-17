@@ -69,6 +69,7 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
+        const FRED_API_KEY = "cbc0c68b6d198568f349a58e0e2f25b9";
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
@@ -91,19 +92,45 @@
             }
         }
 
-        // --- Yahoo Finance 통합 호출 로직 (1회 호출로 단축) ---
+        // --- FRED 데이터 호출 (국채 3종) ---
+        async function fetchFredData() {
+            const fredSeries = [
+                { s: "DGS30", id: "US30Y" },
+                { s: "DGS10", id: "US10Y" },
+                { s: "DGS2", id: "US2Y" }
+            ];
+
+            for (const item of fredSeries) {
+                try {
+                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
+                    const data = await fetchData(url);
+                    if (data && data.observations && data.observations.length >= 2) {
+                        const c = parseFloat(data.observations[0].value);
+                        const p = parseFloat(data.observations[1].value);
+                        const el = document.getElementById(item.id);
+                        if (el && !isNaN(c)) {
+                            el.innerText = c.toFixed(2);
+                            formatChange(c, p, item.id);
+                            if(item.id === "US10Y") { live.y10 = c; live.y10p = p; }
+                            if(item.id === "US2Y") { live.y2 = c; live.y2p = p; }
+                        }
+                    }
+                } catch (e) { console.error(item.id + " FRED 로드 실패"); }
+            }
+            updateCalculated();
+        }
+
+        // --- Yahoo Finance 통합 호출 (국채 제외) ---
         async function fetchYahooData() {
             const symbolMap = {
                 "DX-Y.NYB": "DXY", "^GSPC": "SP500", "^IXIC": "NASDAQ", 
                 "^DJI": "DOW", "^KS11": "KOSPI", "^KQ11": "KOSDAQ",
-                "^TYX": "US30Y", "^TNX": "US10Y", "^IRX": "US2Y",
                 "SI=F": "SILVER", "HG=F": "COPPER", "PL=F": "PLATINUM", 
                 "CL=F": "WTI", "^VIX": "VIX"
             };
             const symbols = Object.keys(symbolMap).join(',');
             
             try {
-                // 여러 심볼을 콤마로 연결하여 단 한 번의 요청으로 처리
                 const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
                 const data = await fetchData(url);
                 
@@ -117,14 +144,11 @@
                                 el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
                                 formatChange(c, p, targetId);
                             }
-
                             if(targetId === "KOSPI") { live.k = c; live.kp = p; }
-                            if(targetId === "US10Y") { live.y10 = c; live.y10p = p; }
-                            if(targetId === "US2Y") { live.y2 = c; live.y2p = p; }
                             if(targetId === "SP500") { updateValuations(c); }
                         }
                     });
-                    updateCalculated(); // 모든 데이터 로드 후 연산 실행
+                    updateCalculated();
                 }
             } catch (e) { console.error("Yahoo Batch 로드 실패"); }
         }
@@ -142,13 +166,15 @@
             }
             if(live.k) {
                 const kcap = (live.k / 2500) * BASE_KR_MCAP;
-                document.getElementById("KR_MCAP").innerText = kcap.toLocaleString(undefined, {maximumFractionDigits:0});
+                const el = document.getElementById("KR_MCAP");
+                if(el) el.innerText = kcap.toLocaleString(undefined, {maximumFractionDigits:0});
             }
         }
 
         function updateValuations(sp500) {
             const uscap = (sp500 / 5000) * BASE_US_MCAP;
-            document.getElementById("US_MCAP").innerText = uscap.toFixed(1);
+            const el = document.getElementById("US_MCAP");
+            if(el) el.innerText = uscap.toFixed(1);
             document.getElementById("BUFFETT").innerText = "192% (고평가)";
             document.getElementById("SHILLER").innerText = "34.5";
         }
@@ -179,7 +205,8 @@
                 } catch(e){ console.error(item.id + " 로드 실패"); }
             }));
 
-            // --- 야후 데이터 통합 호출 ---
+            // --- FRED 및 야후 데이터 호출 ---
+            fetchFredData();
             fetchYahooData();
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
