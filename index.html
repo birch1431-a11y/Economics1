@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🔄 글로벌 경제 상황판</title>
+    <title>🔄 글로벌 경제 상황판 (핵심 12개 지표)</title>
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, sans-serif; padding: 15px; margin: 0; }
         .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 25px; color: #c5a059; cursor: pointer; padding: 10px; border: 1px solid #444; border-radius: 8px; }
@@ -15,65 +15,35 @@
         .value { font-size: 1rem; font-weight: 600; font-family: 'Roboto Mono', monospace; color: #ffffff; display: block; }
         .change { font-size: 0.75rem; font-weight: 400; margin-top: 2px; }
         .up { color: #ff4444; } .down { color: #4488ff; }
-        .status-danger { color: #ff4444 !important; } 
-        .status-warning { color: #ffbb33 !important; } 
-        .status-safe { color: #00ff88 !important; }
-        .footer-copy { text-align: center; font-size: 0.7rem; color: #555; margin: 40px 0 10px 0; border-top: 1px solid #222; padding-top: 20px; letter-spacing: 0.5px; }
+        .status-msg { text-align:center; font-size:0.7rem; color:#c5a059; margin-top:20px; border-top: 1px solid #222; padding-top: 10px; }
     </style>
 </head>
 <body>
     <div class="header" onclick="location.reload()">🔄 글로벌 경제 상황판</div>
 
-    <div class="category">외환</div><hr class="hr-short">
-    <div class="item-row"><span class="label">달러지수</span><div class="val-container"><span class="value" id="DXY">--</span><div class="change" id="DXY-c">--</div></div></div>
-    <div class="item-row"><span class="label">원/달러</span><div class="val-container"><span class="value" id="USD/KRW">--</span><div class="change" id="USD/KRW-c">--</div></div></div>
-    <div class="item-row"><span class="label">원/엔</span><div class="val-container"><span class="value" id="JPY/KRW">--</span><div class="change" id="JPY/KRW-c">--</div></div></div>
-    <div class="item-row"><span class="label">원/유로</span><div class="val-container"><span class="value" id="EUR/KRW">--</span><div class="change" id="EUR/KRW-c">--</div></div></div>
-    <div class="item-row"><span class="label">원/위안</span><div class="val-container"><span class="value" id="CNY/KRW">--</span><div class="change" id="CNY/KRW-c">--</div></div></div>
-
-    <div class="category">주요 증시지표</div><hr class="hr-short">
-    <div class="item-row"><span class="label">미 증시 시총($T)</span><div class="val-container"><span class="value" id="US_MCAP">--</span><div class="change" id="US_MCAP-c">--</div></div></div>
+    <div class="category">핵심 실시간 지표 (Twelve Data)</div><hr class="hr-short">
     <div class="item-row"><span class="label">S&P 500</span><div class="val-container"><span class="value" id="SP500">--</span><div class="change" id="SP500-c">--</div></div></div>
     <div class="item-row"><span class="label">NASDAQ</span><div class="val-container"><span class="value" id="NASDAQ">--</span><div class="change" id="NASDAQ-c">--</div></div></div>
-    <div class="item-row"><span class="label">DOW</span><div class="val-container"><span class="value" id="DOW">--</span><div class="change" id="DOW-c">--</div></div></div>
-    <div class="item-row"><span class="label">한 증시 시총(조₩)</span><div class="val-container"><span class="value" id="KR_MCAP">--</span><div class="change" id="KR_MCAP-c">--</div></div></div>
     <div class="item-row"><span class="label">KOSPI</span><div class="val-container"><span class="value" id="KOSPI">--</span><div class="change" id="KOSPI-c">--</div></div></div>
-    <div class="item-row"><span class="label">달러환산 KOSPI</span><div class="val-container"><span class="value" id="KOSPI_USD">--</span><div class="change" id="KOSPI_USD-c">--</div></div></div>
     <div class="item-row"><span class="label">KOSDAQ</span><div class="val-container"><span class="value" id="KOSDAQ">--</span><div class="change" id="KOSDAQ-c">--</div></div></div>
+    <div class="item-row"><span class="label">원/달러 환율</span><div class="val-container"><span class="value" id="USD/KRW">--</span><div class="change" id="USD/KRW-c">--</div></div></div>
+    <div class="item-row"><span class="label">원/엔 환율</span><div class="val-container"><span class="value" id="JPY/KRW">--</span><div class="change" id="JPY/KRW-c">--</div></div></div>
+    <div class="item-row"><span class="label">금 ($/oz)</span><div class="val-container"><span class="value" id="GOLD">--</span><div class="change" id="GOLD-c">--</div></div></div>
+    <div class="item-row"><span class="label">BTC ($)</span><div class="val-container"><span class="value" id="BTC">--</span><div class="change" id="BTC-c">--</div></div></div>
 
-    <div class="category">미국 국채 금리</div><hr class="hr-short">
-    <div class="item-row"><span class="label">30Y Yield</span><div class="val-container"><span class="value" id="US30Y">--</span><div class="change" id="US30Y-c">--</div></div></div>
-    <div class="item-row"><span class="label">10Y Yield</span><div class="val-container"><span class="value" id="US10Y">--</span><div class="change" id="US10Y-c">--</div></div></div>
-    <div class="item-row"><span class="label">2Y Yield</span><div class="val-container"><span class="value" id="US2Y">--</span><div class="change" id="US2Y-c">--</div></div></div>
+    <div class="category">추가 경제 지표 (Alpha Vantage)</div><hr class="hr-short">
+    <div class="item-row"><span class="label">미 10년 금리</span><div class="val-container"><span class="value" id="US10Y">--</span><div class="change" id="US10Y-c">--</div></div></div>
+    <div class="item-row"><span class="label">DOW Jones</span><div class="val-container"><span class="value" id="DOW">--</span><div class="change" id="DOW-c">--</div></div></div>
+    <div class="item-row"><span class="label">WTI 원유</span><div class="val-container"><span class="value" id="WTI">--</span><div class="change" id="WTI-c">--</div></div></div>
+    <div class="item-row"><span class="label">원/유로 환율</span><div class="val-container"><span class="value" id="EUR/KRW">--</span><div class="change" id="EUR/KRW-c">--</div></div></div>
 
-    <div class="category">원자재</div><hr class="hr-short">
-    <div class="item-row"><span class="label">금($/oz)</span><div class="val-container"><span class="value" id="GOLD">--</span><div class="change" id="GOLD-c">--</div></div></div>
-    <div class="item-row"><span class="label">은($/oz)</span><div class="val-container"><span class="value" id="SILVER">--</span><div class="change" id="SILVER-c">--</div></div></div>
-    <div class="item-row"><span class="label">구리($/lb)</span><div class="val-container"><span class="value" id="COPPER">--</span><div class="change" id="COPPER-c">--</div></div></div>
-    <div class="item-row"><span class="label">백금($/oz)</span><div class="val-container"><span class="value" id="PLATINUM">--</span><div class="change" id="PLATINUM-c">--</div></div></div>
-    <div class="item-row"><span class="label">WTI유($/bbl)</span><div class="val-container"><span class="value" id="WTI">--</span><div class="change" id="WTI-c">--</div></div></div>
-
-    <div class="category">가상자산</div><hr class="hr-short">
-    <div class="item-row"><span class="label">BTC($)</span><div class="val-container"><span class="value" id="BTC">--</span><div class="change" id="BTC-c">--</div></div></div>
-    <div class="item-row"><span class="label">ETH($)</span><div class="val-container"><span class="value" id="ETH">--</span><div class="change" id="ETH-c">--</div></div></div>
-    <div class="item-row"><span class="label">XRP($)</span><div class="val-container"><span class="value" id="XRP">--</span><div class="change" id="XRP-c">--</div></div></div>
-
-    <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
-    <div class="item-row"><span class="label">VIX</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
-    <div class="item-row"><span class="label">장단기 금리차</span><div class="val-container"><span class="value" id="SPREAD">--</span><div class="change" id="SPREAD-c">--</div></div></div>
-    <div class="item-row"><span class="label">버핏 지수</span><span class="value" id="BUFFETT">--</span></div>
-    <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
-
-    <div class="footer-copy">2026 Developed by <span style="color: #777; font-weight: 500;">S.K. Chun</span></div>
-    <div id="status-msg" style="text-align:center; font-size:0.7rem; color:#555; margin-bottom:30px;">데이터 연결 중...</div>
+    <div id="status-msg" class="status-msg">중요 8개 지표 로딩 중...</div>
 
     <script>
-        const TWELVE_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const ALPHA_KEY = "NG255JZSTJEJFW4I"; 
-        let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
+        const TD_KEY = "7142915ec1dc45caad56dfc9fcf07341";
+        const AV_KEY = "NG255JZSTJEJFW4I";
 
         function formatChange(c, p, id) {
-            if(!c || !p || isNaN(c) || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
@@ -81,102 +51,63 @@
             if(cEl) cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
         }
 
-        function updateUI(id, c, p) {
-            const el = document.getElementById(id);
-            if(!el || isNaN(c)) return;
-            
-            if(id === "XRP") el.innerText = c.toFixed(4);
-            else if(id.includes("US") && id.includes("Y")) el.innerText = c.toFixed(2) + "%";
-            else el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-            
-            formatChange(c, p, id);
-            
-            if (id === "VIX") {
-                const pct = ((c - p) / p * 100);
-                el.className = "value " + (pct >= 5 ? "status-danger" : pct >= 2 ? "status-warning" : "status-safe");
-            }
-        }
-
-        async function fetchTwelve(symbol, id) {
+        // Twelve Data: 요청하신 핵심 8개 집중 (분당 8개 제한 준수)
+        async function fetchTD(symbol, id) {
             try {
-                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${TWELVE_KEY}`);
+                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${TD_KEY}`);
                 const d = await res.json();
-                if(d && d.close) {
+                if(d.close) {
                     const c = parseFloat(d.close), p = parseFloat(d.previous_close);
-                    updateUI(id, c, p);
-                    if(id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
-                    if(id === "KOSPI"){ live.k=c; live.kp=p; updateKrMcap(c, p); updateKospiUsd(); }
-                    if(symbol === "VTI") updateUsMcap(c, p);
+                    document.getElementById(id).innerText = c.toLocaleString(undefined, {minimumFractionDigits:2});
+                    formatChange(c, p, id);
                 }
-            } catch(e) { console.log(id + " 건너뜀"); }
+            } catch(e) { console.error(id + " TD 실패"); }
         }
 
-        async function fetchAlpha(symbol, id, type="GLOBAL_QUOTE") {
+        // Alpha Vantage: 나머지 4개 (15초 간격 순차 로딩으로 차단 방지)
+        async function fetchAV(symbol, id) {
             try {
-                let url = `https://www.alphavantage.co/query?function=${type}&symbol=${symbol}&apikey=${ALPHA_KEY}`;
-                if(type === "TREASURY_YIELD") url = `https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=${symbol}&apikey=${ALPHA_KEY}`;
-                
-                const res = await fetch(url);
-                const d = await res.json();
-                
-                if(type === "GLOBAL_QUOTE" && d["Global Quote"] && d["Global Quote"]["05. price"]) {
-                    const q = d["Global Quote"];
-                    const c = parseFloat(q["05. price"]), p = parseFloat(q["08. previous close"]);
-                    updateUI(id, c, p);
-                } else if(type === "TREASURY_YIELD" && d.data && d.data[0]) {
-                    const c = parseFloat(d.data[0].value), p = parseFloat(d.data[1].value);
-                    updateUI(id, c, p);
-                    if(id === "US10Y") { live.y10=c; live.y10p=p; updateSpread(); }
-                    if(id === "US2Y") { live.y2=c; live.y2p=p; updateSpread(); }
+                const res = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${AV_KEY}`);
+                const data = await res.json();
+                const q = data["Global Quote"];
+                if (q && q["05. price"]) {
+                    const cur = parseFloat(q["05. price"]), prev = parseFloat(q["08. previous close"]);
+                    let display = cur.toLocaleString(undefined, {minimumFractionDigits:2});
+                    if(id === "US10Y") display = cur.toFixed(2) + "%";
+                    document.getElementById(id).innerText = display;
+                    formatChange(cur, prev, id);
+                    return true;
                 }
-            } catch(e) { console.log(id + " 건너뜀"); }
-        }
-
-        function updateUsMcap(c, p) {
-            const m = 62.5 * (c/p);
-            const el = document.getElementById("US_MCAP");
-            if(el) { el.innerText = m.toFixed(2); formatChange(m, 62.5, "US_MCAP"); }
-        }
-
-        function updateKrMcap(c, p) {
-            const m = 4660 * (c/p);
-            const el = document.getElementById("KR_MCAP");
-            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, 4660, "KR_MCAP"); }
-        }
-
-        function updateKospiUsd() {
-            if(live.k && live.u) {
-                const c = live.k/live.u, p = live.kp/live.up;
-                const el = document.getElementById("KOSPI_USD");
-                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
-            }
-        }
-
-        function updateSpread() {
-            if(live.y10 && live.y2) {
-                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
-                const el = document.getElementById("SPREAD");
-                if(el) { el.innerText = s.toFixed(2) + "%p"; formatChange(s, sp, "SPREAD"); el.className = "value " + (s<0?"status-danger":"status-safe"); }
-            }
+            } catch(e) { return false; }
+            return false;
         }
 
         async function init() {
-            // 1. TwelveData (환율, 국내지수, 금, 코인)
-            const td = [["USD/KRW","USD/KRW"],["JPY/KRW","JPY/KRW"],["EUR/KRW","EUR/KRW"],["CNY/KRW","CNY/KRW"],["KOSPI","KOSPI"],["KOSDAQ","KOSDAQ"],["VTI","VTI"],["GOLD","GOLD"],["SILVER","SILVER"],["BTC/USD","BTC"],["ETH/USD","ETH"],["XRP/USD","XRP"]];
-            for (const x of td) { fetchTwelve(x[0], x[1]); await new Promise(r => setTimeout(r, 600)); }
+            // 1. Twelve Data (8개 지표 즉시 로드)
+            const td_items = [
+                ["SPX", "SP500"], ["IXIC", "NASDAQ"], ["KOSPI", "KOSPI"], ["KOSDAQ", "KOSDAQ"],
+                ["USD/KRW", "USD/KRW"], ["JPY/KRW", "JPY/KRW"], ["GOLD", "GOLD"], ["BTC/USD", "BTC"]
+            ];
+            for(let x of td_items) {
+                fetchTD(x[0], x[1]);
+                await new Promise(r => setTimeout(r, 800)); // 0.8초 대기
+            }
 
-            // 2. Alpha Vantage (국채금리, 지수)
-            await fetchAlpha("10year", "US10Y", "TREASURY_YIELD"); await new Promise(r => setTimeout(r, 1000));
-            await fetchAlpha("2year", "US2Y", "TREASURY_YIELD"); await new Promise(r => setTimeout(r, 1000));
-            await fetchAlpha("30year", "US30Y", "TREASURY_YIELD"); await new Promise(r => setTimeout(r, 1000));
-            
-            const av = [["DX-Y","DXY"],["VIXY","VIX"],["SPY","SP500"],["QQQ","NASDAQ"],["DIA","DOW"]];
-            for (const x of av) { fetchAlpha(x[0], x[1]); await new Promise(r => setTimeout(r, 1000)); }
+            // 2. Alpha Vantage (나머지 4개 순차 로드)
+            const av_items = [
+                ["TNX", "US10Y"], ["DIA", "DOW"], ["USO", "WTI"], ["EUR/KRW", "EUR/KRW"]
+            ];
 
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString(); }, 2000);
+            for(let i=0; i < av_items.length; i++) {
+                document.getElementById('status-msg').innerText = `${av_items[i][1]} 업데이트 중 (15초 대기)...`;
+                await fetchAV(av_items[i][0], av_items[i][1]);
+                if (i < av_items.length - 1) await new Promise(r => setTimeout(r, 15000));
+            }
+
+            document.getElementById('status-msg').innerText = "최종 업데이트 완료: " + new Date().toLocaleTimeString();
         }
 
-        window.onload = init;
+            window.onload = init;
     </script>
 </body>
 </html>
