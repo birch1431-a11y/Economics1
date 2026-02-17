@@ -69,20 +69,16 @@
 
     <script>
         const TWELVE_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const ALPHA_VANTAGE_KEY = "NG255JZSTJEJFW4I"; 
-        const BASE_US_MCAP = 62.5; 
-        const BASE_KR_MCAP = 4660; 
+        const ALPHA_KEY = "NG255JZSTJEJFW4I"; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
         function formatChange(c, p, id) {
-            if(!c || !p) return;
+            if(!c || !p || isNaN(c) || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
             const cEl = document.getElementById(id + "-c");
-            if(cEl) {
-                cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
-            }
+            if(cEl) cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
         }
 
         function updateUI(id, c, p) {
@@ -97,9 +93,7 @@
             
             if (id === "VIX") {
                 const pct = ((c - p) / p * 100);
-                if (pct >= 5) el.className = "value status-danger";
-                else if (pct >= 2) el.className = "value status-warning";
-                else el.className = "value status-safe";
+                el.className = "value " + (pct >= 5 ? "status-danger" : pct >= 2 ? "status-warning" : "status-safe");
             }
         }
 
@@ -114,40 +108,40 @@
                     if(id === "KOSPI"){ live.k=c; live.kp=p; updateKrMcap(c, p); updateKospiUsd(); }
                     if(symbol === "VTI") updateUsMcap(c, p);
                 }
-            } catch(e) { console.error(id + " TwelveData 실패"); }
+            } catch(e) { console.log(id + " 건너뜀"); }
         }
 
         async function fetchAlpha(symbol, id, type="GLOBAL_QUOTE") {
             try {
-                let url = `https://www.alphavantage.co/query?function=${type}&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
-                if(type === "TREASURY_YIELD") url = `https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
+                let url = `https://www.alphavantage.co/query?function=${type}&symbol=${symbol}&apikey=${ALPHA_KEY}`;
+                if(type === "TREASURY_YIELD") url = `https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=${symbol}&apikey=${ALPHA_KEY}`;
                 
                 const res = await fetch(url);
                 const d = await res.json();
                 
-                if(type === "GLOBAL_QUOTE" && d["Global Quote"]) {
+                if(type === "GLOBAL_QUOTE" && d["Global Quote"] && d["Global Quote"]["05. price"]) {
                     const q = d["Global Quote"];
                     const c = parseFloat(q["05. price"]), p = parseFloat(q["08. previous close"]);
                     updateUI(id, c, p);
-                } else if(type === "TREASURY_YIELD" && d.data) {
+                } else if(type === "TREASURY_YIELD" && d.data && d.data[0]) {
                     const c = parseFloat(d.data[0].value), p = parseFloat(d.data[1].value);
                     updateUI(id, c, p);
                     if(id === "US10Y") { live.y10=c; live.y10p=p; updateSpread(); }
                     if(id === "US2Y") { live.y2=c; live.y2p=p; updateSpread(); }
                 }
-            } catch(e) { console.error(id + " AlphaVantage 실패"); }
+            } catch(e) { console.log(id + " 건너뜀"); }
         }
 
         function updateUsMcap(c, p) {
-            const m = BASE_US_MCAP * (c/p);
+            const m = 62.5 * (c/p);
             const el = document.getElementById("US_MCAP");
-            if(el) { el.innerText = m.toFixed(2); formatChange(m, BASE_US_MCAP, "US_MCAP"); }
+            if(el) { el.innerText = m.toFixed(2); formatChange(m, 62.5, "US_MCAP"); }
         }
 
         function updateKrMcap(c, p) {
-            const m = BASE_KR_MCAP * (c/p);
+            const m = 4660 * (c/p);
             const el = document.getElementById("KR_MCAP");
-            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, 4660, "KR_MCAP"); }
         }
 
         function updateKospiUsd() {
@@ -159,50 +153,27 @@
         }
 
         function updateSpread() {
-            if(!isNaN(live.y10) && !isNaN(live.y2) && live.y10 !== 0) {
+            if(live.y10 && live.y2) {
                 const s = live.y10-live.y2, sp = live.y10p-live.y2p;
                 const el = document.getElementById("SPREAD");
-                if(el) { 
-                    el.innerText = s.toFixed(2) + "%p"; 
-                    formatChange(s, sp, "SPREAD"); 
-                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
-                }
+                if(el) { el.innerText = s.toFixed(2) + "%p"; formatChange(s, sp, "SPREAD"); el.className = "value " + (s<0?"status-danger":"status-safe"); }
             }
         }
 
         async function init() {
-            // 1. TwelveData 호출 (환율, 국내지수, 코인 등)
-            const td_items = [
-                ["USD/KRW", "USD/KRW"], ["JPY/KRW", "JPY/KRW"], ["EUR/KRW", "EUR/KRW"], ["CNY/KRW", "CNY/KRW"],
-                ["KOSPI", "KOSPI"], ["KOSDAQ", "KOSDAQ"], ["VTI", "US_MCAP_HIDDEN"],
-                ["GOLD", "GOLD"], ["SILVER", "SILVER"], ["BTC/USD", "BTC"], ["ETH/USD", "ETH"], ["XRP/USD", "XRP"]
-            ];
+            // 1. TwelveData (환율, 국내지수, 금, 코인)
+            const td = [["USD/KRW","USD/KRW"],["JPY/KRW","JPY/KRW"],["EUR/KRW","EUR/KRW"],["CNY/KRW","CNY/KRW"],["KOSPI","KOSPI"],["KOSDAQ","KOSDAQ"],["VTI","VTI"],["GOLD","GOLD"],["SILVER","SILVER"],["BTC/USD","BTC"],["ETH/USD","ETH"],["XRP/USD","XRP"]];
+            for (const x of td) { fetchTwelve(x[0], x[1]); await new Promise(r => setTimeout(r, 600)); }
 
-            for (const item of td_items) {
-                fetchTwelve(item[0], item[1]);
-                await new Promise(r => setTimeout(r, 600)); 
-            }
-
-            // 2. Alpha Vantage 호출 (미국 국채 및 주요 지수)
-            // 국채금리
-            await fetchAlpha("10year", "US10Y", "TREASURY_YIELD");
-            await new Promise(r => setTimeout(r, 1000));
-            await fetchAlpha("2year", "US2Y", "TREASURY_YIELD");
-            await new Promise(r => setTimeout(r, 1000));
-            await fetchAlpha("30year", "US30Y", "TREASURY_YIELD");
-            await new Promise(r => setTimeout(r, 1000));
+            // 2. Alpha Vantage (국채금리, 지수)
+            await fetchAlpha("10year", "US10Y", "TREASURY_YIELD"); await new Promise(r => setTimeout(r, 1000));
+            await fetchAlpha("2year", "US2Y", "TREASURY_YIELD"); await new Promise(r => setTimeout(r, 1000));
+            await fetchAlpha("30year", "US30Y", "TREASURY_YIELD"); await new Promise(r => setTimeout(r, 1000));
             
-            // 주요 지수 (DXY, VIX, S&P500 등)
-            const av_items = [
-                ["DX-Y", "DXY"], ["VIXY", "VIX"], ["SPY", "SP500"], ["QQQ", "NASDAQ"], ["DIA", "DOW"]
-            ];
-            
-            for (const item of av_items) {
-                fetchAlpha(item[0], item[1]);
-                await new Promise(r => setTimeout(r, 1000));
-            }
+            const av = [["DX-Y","DXY"],["VIXY","VIX"],["SPY","SP500"],["QQQ","NASDAQ"],["DIA","DOW"]];
+            for (const x of av) { fetchAlpha(x[0], x[1]); await new Promise(r => setTimeout(r, 1000)); }
 
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 2000);
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString(); }, 2000);
         }
 
         window.onload = init;
