@@ -83,105 +83,10 @@
             }
         }
 
-        // Twelve Data 일괄 호출 (속도 개선)
         async function fetchTwelveDataBatch() {
-            // 요청 지표: DXY(DXY), USD/KRW, S&P500(GSPC), NASDAQ(IXIC), KOSPI(KS11), GOLD(XAU/USD), BTC(BTC/USD)
-            const symbols = "DXY,USD/KRW,GSPC,IXIC,KS11,XAU/USD,BTC/USD";
+            // Twelve Data 내부 호출용 심볼 (화면 표시용 이름 아님)
+            // 지수 및 핵심 7개: DXY(달러지수), USD/KRW(원/달러), SPX(S&P500), IXIC(NASDAQ), KOSPI(KOSPI), XAU/USD(금), BTC/USD(비트코인)
+            const symbols = "DXY,USD/KRW,SPX,IXIC,KOSPI,XAU/USD,BTC/USD";
             try {
                 const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbols}&apikey=${MY_API_KEY}`);
                 const data = await res.json();
-                
-                // 각 지표 맵핑 처리
-                updateItem("DXY", data["DXY"]);
-                updateItem("USD/KRW", data["USD/KRW"]);
-                updateItem("SP500", data["GSPC"]);
-                updateItem("NASDAQ", data["IXIC"]);
-                updateItem("KOSPI", data["KS11"]);
-                updateItem("GOLD", data["XAU/USD"]);
-                updateItem("BTC", data["BTC/USD"]);
-
-            } catch (e) { console.error("Twelve Data 로드 실패", e); }
-        }
-
-        function updateItem(id, d) {
-            if (!d || !d.close) return;
-            const c = parseFloat(d.close), p = parseFloat(d.previous_close);
-            const el = document.getElementById(id);
-            if (el) {
-                el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                formatChange(c, p, id);
-            }
-            // 연산용 데이터 저장
-            if (id === "KOSPI") { live.k = c; live.kp = p; updateKrMcap(c, p); }
-            if (id === "USD/KRW") { live.u = c; live.up = p; updateKospiUsd(); }
-            if (id === "SP500") updateUsMcap(c, p); // S&P500 기반으로 미시총 추정 (VTI 대신)
-            updateKospiUsd();
-        }
-
-        // 기존 야후 로직 -> Twelve Data 개별 호출로 우회 (추후 상의용 구조 유지)
-        async function getYahoo(ticker, id) {
-            // 현재 야후가 막혔으므로, Twelve Data에서 개별적으로 가져올 수 있도록 구성만 변경
-            try {
-                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${ticker}&apikey=${MY_API_KEY}`);
-                const d = await res.json();
-                if(d && d.close) {
-                    const c = parseFloat(d.close), p = parseFloat(d.previous_close);
-                    const el = document.getElementById(id);
-                    if(el) {
-                        el.innerText = (id==="SILVER") ? c.toFixed(3) : c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                        formatChange(c, p, id);
-                    }
-                }
-            } catch (err) { console.error(id + " 로드 실패"); }
-        }
-
-        function updateUsMcap(c, p) {
-            const m = BASE_US_MCAP * (c/p);
-            const el = document.getElementById("US_MCAP");
-            if(el) {
-                el.innerText = m.toFixed(2);
-                formatChange(m, BASE_US_MCAP, "US_MCAP");
-                const bft = (m/27.94*100).toFixed(1);
-                const bEl = document.getElementById("BUFFETT");
-                if(bEl) { 
-                    bEl.innerText = bft + "%"; 
-                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
-                }
-            }
-        }
-
-        function updateKrMcap(c, p) {
-            const m = BASE_KR_MCAP * (c/p);
-            const el = document.getElementById("KR_MCAP");
-            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
-        }
-
-        function updateKospiUsd() {
-            if(live.k && live.u) {
-                const c = live.k/live.u, p = live.kp/live.up;
-                const el = document.getElementById("KOSPI_USD");
-                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
-            }
-        }
-
-        async function init() {
-            // 1. 핵심 7개 지표 일괄 호출 (Twelve Data)
-            await fetchTwelveDataBatch();
-
-            // 2. 나머지 지표들 (개별 호출 - 속도 제한 준수)
-            const remaining = [
-                ["JPY/KRW","JPY/KRW"], ["EUR/KRW","EUR/KRW"], ["CNY/KRW","CNY/KRW"],
-                ["ETH/USD","ETH"], ["XRP/USD","XRP"], ["DJI","DOW"], ["IXIC","KOSDAQ"]
-            ];
-            
-            for (const item of remaining) {
-                getYahoo(item[0], item[1]);
-                await new Promise(r => setTimeout(r, 800)); // API Rate Limit 방지
-            }
-
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
-        }
-        window.onload = init;
-    </script>
-</body>
-</html>
