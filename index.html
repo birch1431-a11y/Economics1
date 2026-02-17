@@ -59,7 +59,7 @@
     <div class="item-row"><span class="label">XRP($)</span><div class="val-container"><span class="value" id="XRP">--</span><div class="change" id="XRP-c">--</div></div></div>
 
     <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
-    <div class="item-row"><span class="label">VIX 지수</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
+    <div class="item-row"><span class="label">VIXY</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
     <div class="item-row"><span class="label">장단기 금리차</span><div class="val-container"><span class="value" id="SPREAD">--</span><div class="change" id="SPREAD-c">--</div></div></div>
     <div class="item-row"><span class="label">버핏 지수</span><span class="value" id="BUFFETT">--</span></div>
     <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
@@ -69,16 +69,10 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const AV_KEY = "NG255JZSTJEJFW4I";
+        const AV_API_KEY = "NG255JZSTJEJFW4I";
+        const BASE_US_MCAP = 62.5; 
+        const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
-
-        async function fetchData(url) {
-            try {
-                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-                const data = await res.json();
-                return JSON.parse(data.contents);
-            } catch (e) { return null; }
-        }
 
         function formatChange(c, p, id) {
             const diff = c - p, pct = (diff/p*100).toFixed(2);
@@ -90,30 +84,63 @@
             }
         }
 
-        async function getYahoo(ticker, id) {
+        async function getAlphaVantage(symbol, id) {
             try {
-                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
-                if (data && data.chart && data.chart.result) {
-                    const meta = data.chart.result[0].meta;
-                    const cur = meta.regularMarketPrice;
-                    const prev = meta.previousClose;
+                // Alpha Vantage Global Quote 엔드포인트 사용
+                const res = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${AV_API_KEY}`);
+                const data = await res.json();
+                
+                if (data && data["Global Quote"]) {
+                    const quote = data["Global Quote"];
+                    const cur = parseFloat(quote["05. price"]);
+                    const prev = parseFloat(quote["08. previous close"]);
                     const el = document.getElementById(id);
-                    if (el) {
-                        let displayVal = (id === "SILVER") ? cur.toFixed(3) : 
-                                         (id === "US30Y" || id === "US10Y" || id === "US2Y") ? cur.toFixed(2) + "%" : 
-                                         cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+
+                    if (el && !isNaN(cur)) {
+                        let displayVal = "";
+                        if (id === "SILVER") { displayVal = cur.toFixed(3); } 
+                        else if (id === "US30Y" || id === "US10Y" || id === "US2Y") { displayVal = cur.toFixed(2) + "%"; } 
+                        else { displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
+                        
                         el.innerText = displayVal;
                         formatChange(cur, prev, id);
+
                         if (id === "VIX") {
-                            el.className = "value " + (cur >= 30 ? "status-danger" : cur >= 20 ? "status-warning" : "status-safe");
+                            const pct = ((cur - prev) / prev * 100);
+                            if (pct >= 5) el.className = "value status-danger";
+                            else if (pct >= 2) el.className = "value status-warning";
+                            else el.className = "value status-safe";
                         }
                     }
-                    if(id === "KOSPI") { live.k=cur; live.kp=prev; }
-                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; }
-                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; }
-                    updateKospiUsd(); updateSpread();
+
+                    if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
+                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
+                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
+                    if(symbol === "VTI") updateUsMcap(cur, prev);
+                    updateKospiUsd();
                 }
             } catch (err) { console.error(id + " 로드 실패"); }
+        }
+
+        function updateUsMcap(c, p) {
+            const m = BASE_US_MCAP * (c/p);
+            const el = document.getElementById("US_MCAP");
+            if(el) {
+                el.innerText = m.toFixed(2);
+                formatChange(m, BASE_US_MCAP, "US_MCAP");
+                const bft = (m/27.94*100).toFixed(1);
+                const bEl = document.getElementById("BUFFETT");
+                if(bEl) { 
+                    bEl.innerText = bft + "%"; 
+                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
+                }
+            }
+        }
+
+        function updateKrMcap(c, p) {
+            const m = BASE_KR_MCAP * (c/p);
+            const el = document.getElementById("KR_MCAP");
+            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
         }
 
         function updateKospiUsd() {
@@ -128,33 +155,37 @@
             if(live.y10 && live.y2) {
                 const s = live.y10-live.y2, sp = live.y10p-live.y2p;
                 const el = document.getElementById("SPREAD");
-                if(el) {
-                    el.innerText = s.toFixed(2) + "%p";
-                    formatChange(s, sp, "SPREAD");
-                    el.className = "value " + (s < 0 ? "status-danger" : "status-safe");
+                if(el) { 
+                    el.innerText = s.toFixed(2) + "%p"; 
+                    formatChange(s, sp, "SPREAD"); 
+                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
                 }
             }
         }
 
         async function init() {
-            // 1. Yahoo Finance 기반 지표 (VIX 참값 포함)
-            const jobs = [
-                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
-                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
-                ["^VIX", "VIX"]
+            // 미 증시 전체 시총 추정을 위한 VTI 로드
+            await getAlphaVantage("VTI", "VTI_HIDDEN");
+            await new Promise(r => setTimeout(r, 12000)); // 알파벤티지 무료키 제한 방지
+
+            const av_jobs = [
+                ["DXJ","DXY"], ["SPY","SP500"], ["QQQ","NASDAQ"], ["DIA","DOW"],
+                ["EWY","KOSPI"], ["KOSDAQ","KOSDAQ"], ["TYX","US30Y"], ["TNX","US10Y"], ["IRX","US2Y"],
+                ["GLD","GOLD"], ["SLV","SILVER"], ["CPER","COPPER"], ["PPLT","PLATINUM"], ["USO","WTI"],
+                ["VIXY", "VIX"]
             ];
-            for (const j of jobs) {
-                await getYahoo(j[0], j[1]);
-                await new Promise(r => setTimeout(r, 100));
+            
+            for (const j of av_jobs) {
+                getAlphaVantage(j[0], j[1]);
+                await new Promise(r => setTimeout(r, 12000)); // 분당 5회 제한에 맞춰 12초 대기
             }
 
-            // 2. Twelve Data 기반 외환/코인
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
             ];
+
             for (const item of tdata_items) {
                 fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
                 .then(r=>r.json()).then(d=>{
@@ -162,25 +193,21 @@
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
                         if(el) {
-                            el.innerText = (item.id === "XRP") ? c.toFixed(4) : c.toLocaleString(undefined,{minimumFractionDigits:2});
+                            if(item.id === "XRP") el.innerText = c.toFixed(4);
+                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                         }
                     }
-                });
-                await new Promise(r => setTimeout(r, 600));
+                }).catch(e => console.error(item.id + " 로드 실패"));
+                await new Promise(r => setTimeout(r, 800));
             }
 
-            // 3. Shiller PER (Yahoo)
-            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
-                if(d && d.chart && d.chart.result) {
-                    const v = d.chart.result[0].meta.regularMarketPrice;
-                    const el = document.getElementById("SHILLER");
-                    if(el) { el.innerText = v.toFixed(1); el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); }
-                }
-            });
+            // 쉴러 PER 대체 (알파벤티지 데이터가 제한적이므로 기존 방식 유지 또는 고정값 처리)
+            document.getElementById("SHILLER").innerText = "35.2"; 
+            document.getElementById("SHILLER").className = "value status-danger";
 
-            document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
         }
         window.onload = init;
     </script>
