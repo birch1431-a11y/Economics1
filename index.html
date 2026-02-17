@@ -59,7 +59,7 @@
     <div class="item-row"><span class="label">XRP($)</span><div class="val-container"><span class="value" id="XRP">--</span><div class="change" id="XRP-c">--</div></div></div>
 
     <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
-    <div class="item-row"><span class="label">VIX</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
+    <div class="item-row"><span class="label">VIXY</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
     <div class="item-row"><span class="label">장단기 금리차</span><div class="val-container"><span class="value" id="SPREAD">--</span><div class="change" id="SPREAD-c">--</div></div></div>
     <div class="item-row"><span class="label">버핏 지수</span><span class="value" id="BUFFETT">--</span></div>
     <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
@@ -69,11 +69,20 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const ALPHA_KEY = "YOUR_ALPHA_KEY"; 
-        let live = { y10:0, y10p:0, y2:0, y2p:0 };
+        const ALPHA_KEY = "NG255JZSTJEJFW4I";
+        const BASE_US_MCAP = 62.5; 
+        const BASE_KR_MCAP = 4660; 
+        let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
+
+        async function fetchData(url) {
+            try {
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                return JSON.parse(data.contents);
+            } catch (e) { return null; }
+        }
 
         function formatChange(c, p, id) {
-            if(!c || !p || isNaN(c) || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
@@ -83,42 +92,97 @@
             }
         }
 
-        // 1. 가상자산 전용 (CoinGecko - 키 불필요, Twelve Data 부하 경감)
-        async function getCrypto() {
+        async function getYahoo(ticker, id) {
             try {
-                const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,ripple&vs_currencies=usd&include_24hr_change=true");
-                const d = await res.json();
-                const coins = [
-                    {id:"BTC", k:"bitcoin"}, {id:"ETH", k:"ethereum"}, {id:"XRP", k:"ripple"}
-                ];
-                coins.forEach(c => {
-                    const price = d[c.k].usd;
-                    const change = d[c.k].usd_24h_change;
-                    const prev = price / (1 + (change / 100));
-                    document.getElementById(c.id).innerText = price.toLocaleString(undefined, {minimumFractionDigits:2});
-                    formatChange(price, prev, c.id);
-                });
-            } catch (e) { console.error("코인 데이터 실패"); }
+                // 원칙 2에 따라 간격을 1h로 조정하여 차단 방지 시도
+                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1h&range=1d`);
+                if (data && data.chart && data.chart.result) {
+                    const meta = data.chart.result[0].meta;
+                    const cur = meta.regularMarketPrice;
+                    const prev = meta.previousClose;
+                    const el = document.getElementById(id);
+
+                    if (el) {
+                        let displayVal = "";
+                        if (id === "SILVER") { displayVal = cur.toFixed(3); } 
+                        else if (id === "US30Y" || id === "US10Y" || id === "US2Y") { displayVal = cur.toFixed(2) + "%"; } 
+                        else { displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
+                        el.innerText = displayVal;
+                        formatChange(cur, prev, id);
+
+                        if (id === "VIX") {
+                            const pct = ((cur - prev) / prev * 100);
+                            if (pct >= 5) el.className = "value status-danger";
+                            else if (pct >= 2) el.className = "value status-warning";
+                            else el.className = "value status-safe";
+                        }
+                    }
+
+                    if(id === "KOSPI") { live.k=cur; live.kp=prev; updateKrMcap(cur, prev); }
+                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
+                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
+                    if(ticker === "VTI") updateUsMcap(cur, prev);
+                    updateKospiUsd();
+                }
+            } catch (err) { console.error(id + " 로드 실패"); }
         }
 
-        // 2. 금리 전용 (Alpha Vantage - 15초 간격 정밀 호출)
-        async function getAlpha(symbol, id, type = "YIELD") {
+        // Twelve Data Batch 호출 구현 (속도 개선)
+        async function fetchTwelveBatch() {
+            const symbols = "USD/KRW,JPY/KRW,EUR/KRW,CNY/KRW,BTC/USD,ETH/USD,XRP/USD";
             try {
-                const url = `https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=${symbol}&apikey=${ALPHA_KEY}`;
-                const res = await fetch(url);
-                const d = await res.json();
-                const el = document.getElementById(id);
-                if (d.data && d.data.length > 1) {
-                    const cur = parseFloat(d.data[0].value);
-                    const prev = parseFloat(d.data[1].value);
-                    if(!isNaN(cur)) {
-                        el.innerText = cur.toFixed(2) + "%";
-                        formatChange(cur, prev, id);
-                        if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
-                        if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
+                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbols}&apikey=${MY_API_KEY}`);
+                const data = await res.json();
+                
+                const mapping = {
+                    "USD/KRW": "USD/KRW", "JPY/KRW": "JPY/KRW", "EUR/KRW": "EUR/KRW", 
+                    "CNY/KRW": "CNY/KRW", "BTC/USD": "BTC", "ETH/USD": "ETH", "XRP/USD": "XRP"
+                };
+
+                for (const s in data) {
+                    const d = data[s];
+                    const id = mapping[s];
+                    if(d && d.close) {
+                        const c = parseFloat(d.close), p = parseFloat(d.previous_close);
+                        const el = document.getElementById(id);
+                        if(el) {
+                            if(id === "XRP") el.innerText = c.toFixed(4);
+                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, id);
+                            if(id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                        }
                     }
                 }
-            } catch (e) { console.error(id + " 금리 실패"); }
+            } catch (e) { console.error("Twelve Data 배치 호출 실패"); }
+        }
+
+        function updateUsMcap(c, p) {
+            const m = BASE_US_MCAP * (c/p);
+            const el = document.getElementById("US_MCAP");
+            if(el) {
+                el.innerText = m.toFixed(2);
+                formatChange(m, BASE_US_MCAP, "US_MCAP");
+                const bft = (m/27.94*100).toFixed(1);
+                const bEl = document.getElementById("BUFFETT");
+                if(bEl) { 
+                    bEl.innerText = bft + "%"; 
+                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
+                }
+            }
+        }
+
+        function updateKrMcap(c, p) {
+            const m = BASE_KR_MCAP * (c/p);
+            const el = document.getElementById("KR_MCAP");
+            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+        }
+
+        function updateKospiUsd() {
+            if(live.k && live.u) {
+                const c = live.k/live.u, p = live.kp/live.up;
+                const el = document.getElementById("KOSPI_USD");
+                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
+            }
         }
 
         function updateSpread() {
@@ -134,37 +198,36 @@
         }
 
         async function init() {
-            // [교통 정리 1단계] 코인 데이터 먼저 가져오기 (API 키 소모 없음)
-            getCrypto();
-
-            // [교통 정리 2단계] 금리 호출 시작 (순차적 15초 간격)
-            const a_jobs = [{s:"10year", id:"US10Y"}, {s:"2year", id:"US2Y"}, {s:"30year", id:"US30Y"}];
-            for (const j of a_jobs) {
-                getAlpha(j.s, j.id);
-                await new Promise(r => setTimeout(r, 15000));
-            }
-
-            // [교통 정리 3단계] Twelve Data (외환, 원자재, 지수 슬롯 확보)
-            // 코인을 빼서 공간이 생겼으므로 은(XAG)과 지수(SPX) 유입 가능성이 높아짐
-            const t_items = [
-                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"},
-                {s:"CNY/KRW", id:"CNY/KRW"}, {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"},
-                {s:"SPX", id:"SP500"}, {s:"DX-Y", id:"DXY"}
+            // 야후 데이터들
+            await getYahoo("VTI", "VTI_HIDDEN");
+            const yahooJobs = [
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
+                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
+                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
+                ["VIXY", "VIX"]
             ];
-
-            for (const item of t_items) {
-                fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
-                .then(r=>r.json()).then(d=>{
-                    if(d && d.close && !d.code){
-                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        document.getElementById(item.id).innerText = c.toLocaleString(undefined,{minimumFractionDigits:3});
-                        formatChange(c, p, item.id);
-                    }
-                }).catch(e => console.error(item.id + " 실패"));
-                await new Promise(r => setTimeout(r, 1500)); 
+            
+            for (const j of yahooJobs) {
+                getYahoo(j[0], j[1]);
+                await new Promise(r => setTimeout(r, 300));
             }
 
-            document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString();
+            // 트웰브데이터 일괄 호출
+            fetchTwelveBatch();
+
+            // Shiller PER
+            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
+                if(d && d.chart && d.chart.result) {
+                    const v = d.chart.result[0].meta.regularMarketPrice;
+                    const el = document.getElementById("SHILLER");
+                    if(el) { 
+                        el.innerText = v.toFixed(1); 
+                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
+                    }
+                }
+            });
+
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
         }
         window.onload = init;
     </script>
