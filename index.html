@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🔄 글로벌 경제 상황판 (Alpha-Twelve)</title>
+    <title>🔄 글로벌 경제 상황판</title>
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, sans-serif; padding: 15px; margin: 0; }
         .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 25px; color: #c5a059; cursor: pointer; padding: 10px; border: 1px solid #444; border-radius: 8px; }
@@ -35,33 +35,51 @@
     <div class="item-row"><span class="label">미 증시 시총($T)</span><div class="val-container"><span class="value" id="US_MCAP">--</span><div class="change" id="US_MCAP-c">--</div></div></div>
     <div class="item-row"><span class="label">S&P 500</span><div class="val-container"><span class="value" id="SP500">--</span><div class="change" id="SP500-c">--</div></div></div>
     <div class="item-row"><span class="label">NASDAQ</span><div class="val-container"><span class="value" id="NASDAQ">--</span><div class="change" id="NASDAQ-c">--</div></div></div>
+    <div class="item-row"><span class="label">DOW</span><div class="val-container"><span class="value" id="DOW">--</span><div class="change" id="DOW-c">--</div></div></div>
     <div class="item-row"><span class="label">한 증시 시총(조₩)</span><div class="val-container"><span class="value" id="KR_MCAP">--</span><div class="change" id="KR_MCAP-c">--</div></div></div>
     <div class="item-row"><span class="label">KOSPI</span><div class="val-container"><span class="value" id="KOSPI">--</span><div class="change" id="KOSPI-c">--</div></div></div>
     <div class="item-row"><span class="label">달러환산 KOSPI</span><div class="val-container"><span class="value" id="KOSPI_USD">--</span><div class="change" id="KOSPI_USD-c">--</div></div></div>
+    <div class="item-row"><span class="label">KOSDAQ</span><div class="val-container"><span class="value" id="KOSDAQ">--</span><div class="change" id="KOSDAQ-c">--</div></div></div>
 
-    <div class="category">국채 금리 및 원자재</div><hr class="hr-short">
-    <div class="item-row"><span class="label">미 10년물 금리</span><div class="val-container"><span class="value" id="US10Y">--</span><div class="change" id="US10Y-c">--</div></div></div>
-    <div class="item-row"><span class="label">미 2년물 금리</span><div class="val-container"><span class="value" id="US2Y">--</span><div class="change" id="US2Y-c">--</div></div></div>
+    <div class="category">미국 국채 금리</div><hr class="hr-short">
+    <div class="item-row"><span class="label">30Y Yield</span><div class="val-container"><span class="value" id="US30Y">--</span><div class="change" id="US30Y-c">--</div></div></div>
+    <div class="item-row"><span class="label">10Y Yield</span><div class="val-container"><span class="value" id="US10Y">--</span><div class="change" id="US10Y-c">--</div></div></div>
+    <div class="item-row"><span class="label">2Y Yield</span><div class="val-container"><span class="value" id="US2Y">--</span><div class="change" id="US2Y-c">--</div></div></div>
+
+    <div class="category">원자재</div><hr class="hr-short">
     <div class="item-row"><span class="label">금($/oz)</span><div class="val-container"><span class="value" id="GOLD">--</span><div class="change" id="GOLD-c">--</div></div></div>
+    <div class="item-row"><span class="label">은($/oz)</span><div class="val-container"><span class="value" id="SILVER">--</span><div class="change" id="SILVER-c">--</div></div></div>
+    <div class="item-row"><span class="label">구리($/lb)</span><div class="val-container"><span class="value" id="COPPER">--</span><div class="change" id="COPPER-c">--</div></div></div>
+    <div class="item-row"><span class="label">백금($/oz)</span><div class="val-container"><span class="value" id="PLATINUM">--</span><div class="change" id="PLATINUM-c">--</div></div></div>
     <div class="item-row"><span class="label">WTI유($/bbl)</span><div class="val-container"><span class="value" id="WTI">--</span><div class="change" id="WTI-c">--</div></div></div>
 
     <div class="category">가상자산</div><hr class="hr-short">
     <div class="item-row"><span class="label">BTC($)</span><div class="val-container"><span class="value" id="BTC">--</span><div class="change" id="BTC-c">--</div></div></div>
+    <div class="item-row"><span class="label">ETH($)</span><div class="val-container"><span class="value" id="ETH">--</span><div class="change" id="ETH-c">--</div></div></div>
     <div class="item-row"><span class="label">XRP($)</span><div class="val-container"><span class="value" id="XRP">--</span><div class="change" id="XRP-c">--</div></div></div>
 
-    <div class="category">시장 심리 및 밸류</div><hr class="hr-short">
+    <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
+    <div class="item-row"><span class="label">VIX 지수</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
     <div class="item-row"><span class="label">장단기 금리차</span><div class="val-container"><span class="value" id="SPREAD">--</span><div class="change" id="SPREAD-c">--</div></div></div>
     <div class="item-row"><span class="label">버핏 지수</span><span class="value" id="BUFFETT">--</span></div>
+    <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
 
     <div class="footer-copy">2026 Developed by <span style="color: #777; font-weight: 500;">S.K. Chun</span></div>
-    <div id="status-msg" style="text-align:center; font-size:0.7rem; color:#555; margin-bottom:30px;">데이터 안정화 중...</div>
+    <div id="status-msg" style="text-align:center; font-size:0.7rem; color:#555; margin-bottom:30px;">데이터 연결 중...</div>
 
     <script>
-        const TWELVE_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const ALPHA_KEY = "NG255JZSTJEJFW4I";
-        const BASE_US_MCAP = 62.5; 
-        const BASE_KR_MCAP = 4660; 
+        const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
+        const ALPHA_VANTAGE_KEY = "NG255JZSTJEJFW4I"; // 요청하신 알파벤티지 키 적용
+        
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
+
+        async function fetchData(url) {
+            try {
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                return JSON.parse(data.contents);
+            } catch (e) { return null; }
+        }
 
         function formatChange(c, p, id) {
             const diff = c - p, pct = (diff/p*100).toFixed(2);
@@ -73,63 +91,37 @@
             }
         }
 
-        // [Alpha Vantage] 전용 호출 함수 (안정성 강화)
-        async function fetchAlpha(symbol, id, type="GLOBAL_QUOTE") {
+        async function getYahoo(ticker, id) {
             try {
-                const url = `https://www.alphavantage.co/query?function=${type}&symbol=${symbol}&apikey=${ALPHA_KEY}`;
-                const res = await fetch(url);
-                const data = await res.json();
-                const quote = data["Global Quote"] || data["Realtime Currency Exchange Rate"];
-                
-                if (quote) {
-                    let cur = parseFloat(quote["05. price"] || quote["5. Exchange Rate"]);
-                    let prev = parseFloat(quote["08. previous close"] || quote["5. Exchange Rate"]); // 외환은 종가개념이 약해 현재가와 동일시 처리될 수 있음
-                    
+                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
+                if (data && data.chart && data.chart.result) {
+                    const meta = data.chart.result[0].meta;
+                    const cur = meta.regularMarketPrice;
+                    const prev = meta.previousClose;
                     const el = document.getElementById(id);
-                    if(el) {
-                        el.innerText = cur.toLocaleString(undefined, {minimumFractionDigits:2});
-                        if(quote["08. previous close"]) formatChange(cur, prev, id);
-                    }
-                    // 내부 계산용 데이터 저장
-                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
-                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
-                }
-            } catch (e) { console.error(id + " Alpha 로드 실패"); }
-        }
 
-        // [Twelve Data] 전용 호출 함수 (속도 최적화)
-        async function fetchTwelveBatch() {
-            const symbols = "USD/KRW,JPY/KRW,EUR/KRW,CNY/KRW,BTC/USD,XRP/USD,KOSPI";
-            try {
-                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbols}&apikey=${TWELVE_KEY}`);
-                const data = await res.json();
-                
-                const mapping = {
-                    "USD/KRW": "USD/KRW", "JPY/KRW": "JPY/KRW", "EUR/KRW": "EUR/KRW", 
-                    "CNY/KRW": "CNY/KRW", "BTC/USD": "BTC", "XRP/USD": "XRP", "KOSPI": "KOSPI"
-                };
+                    if (el) {
+                        let displayVal = "";
+                        if (id === "SILVER") { displayVal = cur.toFixed(3); } 
+                        else if (id === "US30Y" || id === "US10Y" || id === "US2Y") { displayVal = cur.toFixed(2) + "%"; } 
+                        else { displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
+                        el.innerText = displayVal;
+                        formatChange(cur, prev, id);
 
-                for (const s in data) {
-                    const d = data[s];
-                    const id = mapping[s];
-                    if(d && d.close) {
-                        const c = parseFloat(d.close), p = parseFloat(d.previous_close);
-                        const el = document.getElementById(id);
-                        if(el) {
-                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2});
-                            formatChange(c, p, id);
-                            if(id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
-                            if(id === "KOSPI"){ live.k=c; live.kp=p; updateKrMcap(c, p); updateKospiUsd(); }
+                        // VIX 지수(참값) 색상 로직
+                        if (id === "VIX") {
+                            if (cur >= 30) el.className = "value status-danger";
+                            else if (cur >= 20) el.className = "value status-warning";
+                            else el.className = "value status-safe";
                         }
                     }
-                }
-            } catch (e) { console.error("Twelve Data 로드 실패"); }
-        }
 
-        function updateKrMcap(c, p) {
-            const m = BASE_KR_MCAP * (c/p);
-            const el = document.getElementById("KR_MCAP");
-            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+                    if(id === "KOSPI") { live.k=cur; live.kp=prev; }
+                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
+                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
+                    updateKospiUsd();
+                }
+            } catch (err) { console.error(id + " 로드 실패"); }
         }
 
         function updateKospiUsd() {
@@ -142,32 +134,78 @@
 
         function updateSpread() {
             if(live.y10 && live.y2) {
-                const s = live.y10-live.y2;
+                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
                 const el = document.getElementById("SPREAD");
                 if(el) { 
                     el.innerText = s.toFixed(2) + "%p"; 
+                    formatChange(s, sp, "SPREAD"); 
                     el.className = "value " + (s<0?"status-danger":"status-safe"); 
                 }
             }
         }
 
+        // Alpha Vantage를 통한 경제 지표 참값 입수 함수 (예시: 실시간성보다 신뢰도 중시)
+        async function getAlphaVantageEconomic(functionName, elementId) {
+            try {
+                const res = await fetch(`https://www.alphavantage.co/query?function=${functionName}&apikey=${ALPHA_VANTAGE_KEY}`);
+                const d = await res.json();
+                if(d && d.data && d.data[0]) {
+                    const val = parseFloat(d.data[0].value);
+                    const el = document.getElementById(elementId);
+                    if(el) el.innerText = val.toLocaleString();
+                }
+            } catch (e) { console.error(elementId + " AV 로드 실패"); }
+        }
+
         async function init() {
-            // 1. 트웰브데이터 (외환/코인/코스피) - 직접 호출이라 가장 안정적
-            fetchTwelveBatch();
+            const jobs = [
+                ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
+                ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
+                ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
+                ["^VIX", "VIX"] // VIXY(ETF)가 아닌 ^VIX(참값 지수)로 수정
+            ];
+            
+            for (const j of jobs) {
+                getYahoo(j[0], j[1]);
+                await new Promise(r => setTimeout(r, 250));
+            }
 
-            // 2. 알파벤티지 (지수/금리/원자재) - 지연시간 수용 원칙하에 공식 API 사용
-            await new Promise(r => setTimeout(r, 500)); 
-            fetchAlpha("DX-Y", "DXY");
-            fetchAlpha("SPY", "SP500"); // S&P500 지수대용 ETF (안정적)
-            fetchAlpha("QQQ", "NASDAQ"); // 나스닥 지수대용 ETF
-            fetchAlpha("TREASURY_YIELD_10Y", "US10Y", "TREASURY_YIELD");
-            fetchAlpha("TREASURY_YIELD_2Y", "US2Y", "TREASURY_YIELD");
-            fetchAlpha("GOLD", "GOLD", "CURRENCY_EXCHANGE_RATE");
-            fetchAlpha("WTI", "WTI", "WTI");
+            const tdata_items = [
+                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
+                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
+                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
+            ];
 
-            setTimeout(()=>{ 
-                document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString() + " (안정 모드)"; 
-            }, 5000);
+            for (const item of tdata_items) {
+                fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
+                .then(r=>r.json()).then(d=>{
+                    if(d && d.close){
+                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
+                        const el = document.getElementById(item.id);
+                        if(el) {
+                            if(item.id === "XRP") el.innerText = c.toFixed(4);
+                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, item.id);
+                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                        }
+                    }
+                }).catch(e => console.error(item.id + " 로드 실패"));
+                await new Promise(r => setTimeout(r, 800));
+            }
+
+            // 쉴러 PER 참값 (Yahoo Finance 데이터 유지)
+            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
+                if(d && d.chart && d.chart.result) {
+                    const v = d.chart.result[0].meta.regularMarketPrice;
+                    const el = document.getElementById("SHILLER");
+                    if(el) { 
+                        el.innerText = v.toFixed(1); 
+                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
+                    }
+                }
+            });
+
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
         }
         window.onload = init;
     </script>
