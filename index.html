@@ -69,8 +69,10 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const ALPHA_KEY = "NG255JZSTJEJFW4I";
-        let live = { k:0, kp:0, u:0, up:0 };
+        const ALPHA_API_KEY = "NG255JZSTJEJFW4I";
+        const BASE_US_MCAP = 62.5; 
+        const BASE_KR_MCAP = 4660; 
+        let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
         async function fetchData(url) {
             try {
@@ -90,32 +92,15 @@
             }
         }
 
-        async function getAlpha(symbol, id) {
-            try {
-                const url = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${symbol}&interval=1min&apikey=${ALPHA_KEY}`;
-                const data = await fetchData(url);
-                if(data && data["Time Series (1min)"]) {
-                    const times = Object.keys(data["Time Series (1min)"]).sort().reverse();
-                    const latest = data["Time Series (1min)"][times[0]];
-                    const close = parseFloat(latest["4. close"]);
-                    const prevClose = parseFloat(latest["4. close"]);
-                    const el = document.getElementById(id);
-                    if(el){
-                        el.innerText = close.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                        formatChange(close, prevClose, id);
-                        if(id==="KOSPI"){ live.k=close; live.kp=prevClose; updateKospiUsd(); }
-                    }
-                }
-            } catch(e){ console.error(id + " 로드 실패"); }
-        }
-
         async function init() {
+            // Twelve Data 항목 정의
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"},
-                {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"}
+                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
             ];
+
+            // 모든 항목을 동시에 fetch
             await Promise.all(tdata_items.map(async item => {
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
@@ -127,26 +112,38 @@
                             if(item.id === "XRP") el.innerText = c.toFixed(4);
                             else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
-                            if(item.id==="USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                         }
                     }
                 } catch(e){ console.error(item.id + " 로드 실패"); }
             }));
 
+            // Alpha Vantage 항목 (1시간 지연 허용)
             const alpha_items = [
-                {s:"KOSPI.KQ", id:"KOSPI"}, {s:"KQ11.KQ", id:"KOSDAQ"}, 
-                {s:"^GSPC", id:"SP500"}, {s:"^IXIC", id:"NASDAQ"}, {s:"CL=F", id:"WTI"}
+                {symbol:"^KS11", id:"KOSPI"}, {symbol:"^KQ11", id:"KOSDAQ"},
+                {symbol:"^GSPC", id:"SP500"}, {symbol:"^IXIC", id:"NASDAQ"},
+                {symbol:"WTI", id:"WTI"}
             ];
-            for(const item of alpha_items){
-                await getAlpha(item.s, item.id);
-                await new Promise(r=>setTimeout(r, 1200));
-            }
+            alpha_items.forEach(async item=>{
+                try{
+                    const r = await fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${item.symbol}&interval=60min&apikey=${ALPHA_API_KEY}`);
+                    const d = await r.json();
+                    if(d && d["Time Series (60min)"]){
+                        const times = Object.keys(d["Time Series (60min)"]).sort().reverse();
+                        const latest = parseFloat(d["Time Series (60min)"][times[0]]["4. close"]);
+                        const el = document.getElementById(item.id);
+                        if(el){
+                            el.innerText = latest.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                        }
+                    }
+                } catch(e){ console.error("Alpha "+item.id+" 로드 실패"); }
+            });
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
         }
 
         function updateKospiUsd() {
-            if(live.k && live.u){
+            if(live.k && live.u) {
                 const c = live.k/live.u, p = live.kp/live.up;
                 const el = document.getElementById("KOSPI_USD");
                 if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
