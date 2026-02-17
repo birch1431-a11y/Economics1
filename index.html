@@ -55,6 +55,7 @@
     <div class="category">가상자산</div><hr class="hr-short">
     <div class="item-row"><span class="label">BTC($)</span><div class="val-container"><span class="value" id="BTC">--</span><div class="change" id="BTC-c">--</div></div></div>
     <div class="item-row"><span class="label">ETH($)</span><div class="val-container"><span class="value" id="ETH">--</span><div class="change" id="ETH-c">--</div></div></div>
+    <div class="item-row"><span class="label">XRP($)</span><div class="val-container"><span class="value" id="XRP">--</span><div class="change" id="XRP-c">--</div></div></div>
 
     <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
     <div class="item-row"><span class="label">VIXY</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
@@ -67,61 +68,55 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        let live = { u:0, up:0, k:0, kp:0, y10:0, y10p:0 };
+        let live = { u:0, up:0 };
 
-        async function fetchData(url) {
+        async function fetchTData(symbol) {
             try {
-                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-                const data = await res.json();
-                return JSON.parse(data.contents);
-            } catch (e) { return null; }
+                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${MY_API_KEY}`);
+                return await res.json();
+            } catch(e){ return null; }
         }
 
-        function formatChange(c, p, id) {
+        function formatChange(c, p, id){
             const diff = c - p, pct = (diff/p*100).toFixed(2);
-            const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
-            const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
-            const cEl = document.getElementById(id + "-c");
-            if(cEl) {
-                cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
-            }
+            const sign = diff>0?"▲":diff<0?"▼":"";
+            const cls = diff>0?"up":diff<0?"down":"";
+            const el = document.getElementById(id+"-c");
+            if(el){ el.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`; }
         }
 
-        async function init() {
-            const tdata_items = [
+        async function init(){
+            const items=[
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"},
                 {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"}, {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}
             ];
-
-            for (const item of tdata_items) {
-                fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
-                .then(r=>r.json()).then(d=>{
-                    if(d && d.close){
-                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        const el = document.getElementById(item.id);
-                        if(el) {
-                            if(item.id === "BTC") el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, item.id);
-                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
-                        }
+            for(const item of items){
+                const d = await fetchTData(item.s);
+                if(d && d.close){
+                    const c=parseFloat(d.close), p=parseFloat(d.previous_close);
+                    const el=document.getElementById(item.id);
+                    if(el){
+                        el.innerText=c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                        formatChange(c,p,item.id);
+                        if(item.id==="USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                     }
-                }).catch(e => console.error(item.id + " 로드 실패"));
-                await new Promise(r => setTimeout(r, 400));
+                }
+                await new Promise(r=>setTimeout(r,400));
             }
-
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
+            setTimeout(()=>{ document.getElementById('status-msg').innerText="최종 업데이트: "+new Date().toLocaleTimeString(); },1000);
         }
 
-        function updateKospiUsd() {
-            if(live.k && live.u) {
-                const c = live.k/live.u, p = live.kp/live.u;
-                const el = document.getElementById("KOSPI_USD");
-                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
+        function updateKospiUsd(){
+            const kEl=document.getElementById("KOSPI");
+            if(kEl && live.u){
+                const c=parseFloat(kEl.innerText.replace(/,/g,''))/live.u;
+                const p=c; // 임시, 이전 값 없으면 0으로 처리
+                const el=document.getElementById("KOSPI_USD");
+                if(el){ el.innerText=c.toFixed(2); formatChange(c,p,"KOSPI_USD"); }
             }
         }
 
-        window.onload = init;
+        window.onload=init;
     </script>
 </body>
 </html>
