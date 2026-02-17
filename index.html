@@ -69,7 +69,6 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const FINNHUB_KEY = "d6acr49r01qqjvbq041gd6acr49r01qqjvbq0420";
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
@@ -93,15 +92,15 @@
         }
 
         async function init() {
-            // Twelve Data 항목 정의
+            // Twelve Data 항목 정의 (금 추가)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"},
-                {s:"XAU/USD", id:"GOLD"}
+                {s:"XAU/USD", id:"GOLD"} // 금 추가
             ];
 
-            // Twelve Data fetch
+            // 모든 항목을 동시에 fetch
             await Promise.all(tdata_items.map(async item => {
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
@@ -117,30 +116,6 @@
                         }
                     }
                 } catch(e){ console.error(item.id + " 로드 실패"); }
-            }));
-
-            // Finnhub 항목 정의 (S&P 500, 나스닥, 다우, VIX)
-            const finnhub_items = [
-                {s:"^GSPC", id:"SP500"},
-                {s:"^IXIC", id:"NASDAQ"},
-                {s:"^DJI", id:"DOW"},
-                {s:"^VIX", id:"VIX"}
-            ];
-
-            // Finnhub fetch
-            await Promise.all(finnhub_items.map(async item => {
-                try {
-                    const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${item.s}&token=${FINNHUB_KEY}`);
-                    const d = await r.json();
-                    if(d && d.c) {
-                        const c = parseFloat(d.c), p = parseFloat(d.pc);
-                        const el = document.getElementById(item.id);
-                        if(el) {
-                            el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, item.id);
-                        }
-                    }
-                } catch(e) { console.error(item.id + " 로드 실패"); }
             }));
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
