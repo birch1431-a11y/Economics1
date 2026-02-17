@@ -116,6 +116,10 @@
                         }
                     }
 
+                    if(id === "JPY/KRW" || id === "EUR/KRW" || id === "CNY/KRW" || id === "ETH" || id === "XRP") {
+                        // 이들은 기존 원본 로직 유지 (Twelve Data 미사용 항목)
+                    }
+
                     if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
                     if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
                     if(ticker === "VTI") updateUsMcap(cur, prev);
@@ -167,57 +171,50 @@
 
         async function init() {
             await getYahoo("VTI", "VTI_HIDDEN");
-            
-            // 야후 파이낸스로 유지할 항목들 (트웰브데이터 요청 수 절약 및 안정성)
-            const yahoo_jobs = [
+
+            // 1. 야후 파이낸스 지표들 (수정 없이 유지)
+            const yahoo_items = [
+                ["JPYKRW=X", "JPY/KRW"], ["EURKRW=X", "EUR/KRW"], ["CNYKRW=X", "CNY/KRW"],
                 ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
                 ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
-                ["VIXY", "VIX"]
+                ["ETH-USD", "ETH"], ["XRP-USD", "XRP"], ["VIXY", "VIX"]
             ];
-            
-            for (const j of yahoo_jobs) {
+
+            for (const j of yahoo_items) {
                 getYahoo(j[0], j[1]);
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 100));
             }
 
-            // 트웰브데이터로 교체한 8개 지수 + 기존 나머지 6개 총 14개 항목
-            const tdata_items = [
-                {s:"DXY", id:"DXY"}, {s:"USD/KRW", id:"USD/KRW"},
+            // 2. 트웰브데이터 신규 8개 지표 (기존 7개 대체)
+            const tdata_new = [
+                {s:"DXY", id:"DXY"}, {s:"USD/KRW", id:"USD/KRW"}, 
                 {s:"SPX", id:"SP500"}, {s:"IXIC", id:"NASDAQ"}, {s:"DJI", id:"DOW"},
-                {s:"KS11", id:"KOSPI"}, {s:"XAU/USD", id:"GOLD"}, {s:"BTC/USD", id:"BTC"},
-                {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
+                {s:"KS11", id:"KOSPI"}, {s:"XAU/USD", id:"GOLD"}, {s:"BTC/USD", id:"BTC"}
             ];
 
-            for (const item of tdata_items) {
+            // 분당 8회 제한을 피하기 위해 10초 간격으로 순차 요청 (안정성 확보)
+            for (const item of tdata_new) {
                 fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
                 .then(r=>r.json()).then(d=>{
                     if(d && d.close){
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
                         if(el) {
-                            if(item.id === "XRP") el.innerText = c.toFixed(4);
-                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
-                            
-                            // 연계 계산 데이터 업데이트
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                             if(item.id === "KOSPI") { live.k=c; live.kp=p; updateKrMcap(c, p); updateKospiUsd(); }
                         }
                     }
                 }).catch(e => console.error(item.id + " 로드 실패"));
-                // 무료 API 제한을 피하기 위해 호출 간격 800ms 유지
-                await new Promise(r => setTimeout(r, 800));
+                await new Promise(r => setTimeout(r, 8000)); // 8초 간격 (무료 플랜 차단 방지)
             }
 
             fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
                 if(d && d.chart && d.chart.result) {
                     const v = d.chart.result[0].meta.regularMarketPrice;
                     const el = document.getElementById("SHILLER");
-                    if(el) { 
-                        el.innerText = v.toFixed(1); 
-                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
-                    }
+                    if(el) { el.innerText = v.toFixed(1); el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); }
                 }
             });
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
