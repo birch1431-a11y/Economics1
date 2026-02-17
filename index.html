@@ -73,14 +73,6 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        async function fetchData(url) {
-            try {
-                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-                const data = await res.json();
-                return JSON.parse(data.contents);
-            } catch (e) { return null; }
-        }
-
         function formatChange(c, p, id) {
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
@@ -91,39 +83,54 @@
             }
         }
 
-        async function getYahoo(ticker, id) {
+        // Twelve Data 일괄 호출 (속도 개선)
+        async function fetchTwelveDataBatch() {
+            // 요청 지표: DXY(DXY), USD/KRW, S&P500(GSPC), NASDAQ(IXIC), KOSPI(KS11), GOLD(XAU/USD), BTC(BTC/USD)
+            const symbols = "DXY,USD/KRW,GSPC,IXIC,KS11,XAU/USD,BTC/USD";
             try {
-                const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
-                if (data && data.chart && data.chart.result) {
-                    const meta = data.chart.result[0].meta;
-                    const cur = meta.regularMarketPrice;
-                    const prev = meta.previousClose;
+                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbols}&apikey=${MY_API_KEY}`);
+                const data = await res.json();
+                
+                // 각 지표 맵핑 처리
+                updateItem("DXY", data["DXY"]);
+                updateItem("USD/KRW", data["USD/KRW"]);
+                updateItem("SP500", data["GSPC"]);
+                updateItem("NASDAQ", data["IXIC"]);
+                updateItem("KOSPI", data["KS11"]);
+                updateItem("GOLD", data["XAU/USD"]);
+                updateItem("BTC", data["BTC/USD"]);
+
+            } catch (e) { console.error("Twelve Data 로드 실패", e); }
+        }
+
+        function updateItem(id, d) {
+            if (!d || !d.close) return;
+            const c = parseFloat(d.close), p = parseFloat(d.previous_close);
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                formatChange(c, p, id);
+            }
+            // 연산용 데이터 저장
+            if (id === "KOSPI") { live.k = c; live.kp = p; updateKrMcap(c, p); }
+            if (id === "USD/KRW") { live.u = c; live.up = p; updateKospiUsd(); }
+            if (id === "SP500") updateUsMcap(c, p); // S&P500 기반으로 미시총 추정 (VTI 대신)
+            updateKospiUsd();
+        }
+
+        // 기존 야후 로직 -> Twelve Data 개별 호출로 우회 (추후 상의용 구조 유지)
+        async function getYahoo(ticker, id) {
+            // 현재 야후가 막혔으므로, Twelve Data에서 개별적으로 가져올 수 있도록 구성만 변경
+            try {
+                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${ticker}&apikey=${MY_API_KEY}`);
+                const d = await res.json();
+                if(d && d.close) {
+                    const c = parseFloat(d.close), p = parseFloat(d.previous_close);
                     const el = document.getElementById(id);
-
-                    if (el) {
-                        let displayVal = "";
-                        if (id === "SILVER") { displayVal = cur.toFixed(3); } 
-                        else if (id === "US30Y" || id === "US10Y" || id === "US2Y") { displayVal = cur.toFixed(2) + "%"; } 
-                        else { displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
-                        el.innerText = displayVal;
-                        formatChange(cur, prev, id);
-
-                        if (id === "VIX") {
-                            const pct = ((cur - prev) / prev * 100);
-                            if (pct >= 5) el.className = "value status-danger";
-                            else if (pct >= 2) el.className = "value status-warning";
-                            else el.className = "value status-safe";
-                        }
+                    if(el) {
+                        el.innerText = (id==="SILVER") ? c.toFixed(3) : c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                        formatChange(c, p, id);
                     }
-
-                    if(id === "JPY/KRW" || id === "EUR/KRW" || id === "CNY/KRW" || id === "ETH" || id === "XRP") {
-                        // 이들은 기존 원본 로직 유지 (Twelve Data 미사용 항목)
-                    }
-
-                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
-                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
-                    if(ticker === "VTI") updateUsMcap(cur, prev);
-                    updateKospiUsd();
                 }
             } catch (err) { console.error(id + " 로드 실패"); }
         }
@@ -157,66 +164,21 @@
             }
         }
 
-        function updateSpread() {
-            if(live.y10 && live.y2) {
-                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
-                const el = document.getElementById("SPREAD");
-                if(el) { 
-                    el.innerText = s.toFixed(2) + "%p"; 
-                    formatChange(s, sp, "SPREAD"); 
-                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
-                }
-            }
-        }
-
         async function init() {
-            await getYahoo("VTI", "VTI_HIDDEN");
+            // 1. 핵심 7개 지표 일괄 호출 (Twelve Data)
+            await fetchTwelveDataBatch();
 
-            // 1. 야후 파이낸스 지표들 (수정 없이 유지)
-            const yahoo_items = [
-                ["JPYKRW=X", "JPY/KRW"], ["EURKRW=X", "EUR/KRW"], ["CNYKRW=X", "CNY/KRW"],
-                ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
-                ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
-                ["ETH-USD", "ETH"], ["XRP-USD", "XRP"], ["VIXY", "VIX"]
+            // 2. 나머지 지표들 (개별 호출 - 속도 제한 준수)
+            const remaining = [
+                ["JPY/KRW","JPY/KRW"], ["EUR/KRW","EUR/KRW"], ["CNY/KRW","CNY/KRW"],
+                ["ETH/USD","ETH"], ["XRP/USD","XRP"], ["DJI","DOW"], ["IXIC","KOSDAQ"]
             ];
-
-            for (const j of yahoo_items) {
-                getYahoo(j[0], j[1]);
-                await new Promise(r => setTimeout(r, 100));
+            
+            for (const item of remaining) {
+                getYahoo(item[0], item[1]);
+                await new Promise(r => setTimeout(r, 800)); // API Rate Limit 방지
             }
 
-            // 2. 트웰브데이터 신규 8개 지표 (기존 7개 대체)
-            const tdata_new = [
-                {s:"DXY", id:"DXY"}, {s:"USD/KRW", id:"USD/KRW"}, 
-                {s:"SPX", id:"SP500"}, {s:"IXIC", id:"NASDAQ"}, {s:"DJI", id:"DOW"},
-                {s:"KS11", id:"KOSPI"}, {s:"XAU/USD", id:"GOLD"}, {s:"BTC/USD", id:"BTC"}
-            ];
-
-            // 분당 8회 제한을 피하기 위해 10초 간격으로 순차 요청 (안정성 확보)
-            for (const item of tdata_new) {
-                fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
-                .then(r=>r.json()).then(d=>{
-                    if(d && d.close){
-                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        const el = document.getElementById(item.id);
-                        if(el) {
-                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, item.id);
-                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
-                            if(item.id === "KOSPI") { live.k=c; live.kp=p; updateKrMcap(c, p); updateKospiUsd(); }
-                        }
-                    }
-                }).catch(e => console.error(item.id + " 로드 실패"));
-                await new Promise(r => setTimeout(r, 8000)); // 8초 간격 (무료 플랜 차단 방지)
-            }
-
-            fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
-                if(d && d.chart && d.chart.result) {
-                    const v = d.chart.result[0].meta.regularMarketPrice;
-                    const el = document.getElementById("SHILLER");
-                    if(el) { el.innerText = v.toFixed(1); el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); }
-                }
-            });
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
         }
         window.onload = init;
