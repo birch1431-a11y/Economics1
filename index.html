@@ -21,26 +21,26 @@
 <body>
     <div class="header" onclick="location.reload()">🔄 글로벌 경제 상황판</div>
 
-    <div class="category">외환</div><hr class="hr-short">
+    <div class="category">외환 및 채권</div><hr class="hr-short">
     <div class="item-row"><span class="label">달러지수</span><div class="val-container"><span class="value" id="DXY">--</span><div class="change" id="DXY-c">--</div></div></div>
+    <div class="item-row"><span class="label">미 국채 10년</span><div class="val-container"><span class="value" id="US10Y">--</span><div class="change" id="US10Y-c">--</div></div></div>
+    <div class="item-row"><span class="label">미 국채 2년</span><div class="val-container"><span class="value" id="US2Y">--</span><div class="change" id="US2Y-c">--</div></div></div>
     <div class="item-row"><span class="label">원/달러</span><div class="val-container"><span class="value" id="USD/KRW">--</span><div class="change" id="USD/KRW-c">--</div></div></div>
-    <div class="item-row"><span class="label">원/엔</span><div class="val-container"><span class="value" id="JPY/KRW">--</span><div class="change" id="JPY/KRW-c">--</div></div></div>
-    <div class="item-row"><span class="label">원/유로</span><div class="val-container"><span class="value" id="EUR/KRW">--</span><div class="change" id="EUR/KRW-c">--</div></div></div>
 
     <div class="category">주요 증시지표</div><hr class="hr-short">
     <div class="item-row"><span class="label">S&P 500</span><div class="val-container"><span class="value" id="SP500">--</span><div class="change" id="SP500-c">--</div></div></div>
     <div class="item-row"><span class="label">NASDAQ</span><div class="val-container"><span class="value" id="NASDAQ">--</span><div class="change" id="NASDAQ-c">--</div></div></div>
     <div class="item-row"><span class="label">DOW</span><div class="val-container"><span class="value" id="DOW">--</span><div class="change" id="DOW-c">--</div></div></div>
-    <div class="item-row"><span class="label">달러환산 KOSPI</span><div class="val-container"><span class="value" id="KOSPI_USD">--</span><div class="change" id="KOSPI_USD-c">--</div></div></div>
-
-    <div class="category">원자재 및 심리</div><hr class="hr-short">
-    <div class="item-row"><span class="label">금($/oz)</span><div class="val-container"><span class="value" id="GOLD">--</span><div class="change" id="GOLD-c">--</div></div></div>
     <div class="item-row"><span class="label">VIX (공포지수)</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
+
+    <div class="category">원자재</div><hr class="hr-short">
+    <div class="item-row"><span class="label">금($/oz)</span><div class="val-container"><span class="value" id="GOLD">--</span><div class="change" id="GOLD-c">--</div></div></div>
+    <div class="item-row"><span class="label">구리</span><div class="val-container"><span class="value" id="COPPER">--</span><div class="change" id="COPPER-c">--</div></div></div>
+    <div class="item-row"><span class="label">천연가스</span><div class="val-container"><span class="value" id="GAS">--</span><div class="change" id="GAS-c">--</div></div></div>
 
     <div class="category">가상자산</div><hr class="hr-short">
     <div class="item-row"><span class="label">BTC($)</span><div class="val-container"><span class="value" id="BTC">--</span><div class="change" id="BTC-c">--</div></div></div>
     <div class="item-row"><span class="label">ETH($)</span><div class="val-container"><span class="value" id="ETH">--</span><div class="change" id="ETH-c">--</div></div></div>
-    <div class="item-row"><span class="label">XRP($)</span><div class="val-container"><span class="value" id="XRP">--</span><div class="change" id="XRP-c">--</div></div></div>
 
     <div class="footer-copy">2026 Developed by <span style="color: #777; font-weight: 500;">S.K. Chun</span></div>
     <div id="status-msg" style="text-align:center; font-size:0.7rem; color:#555; margin-bottom:30px;">데이터 연결 중...</div>
@@ -48,8 +48,6 @@
     <script>
         const T_KEY = "7142915ec1dc45caad56dfc9fcf07341"; // Twelve Data
         const F_KEY = "d6acr49r01qqjvbq041gd6acr49r01qqjvbq0420"; // Finnhub
-        
-        let live = { u:0, up:0 }; // 환율 데이터 저장용
 
         function formatChange(c, p, id) {
             const diff = c - p, pct = (diff/p*100).toFixed(2);
@@ -61,37 +59,33 @@
             }
         }
 
-        // Finnhub 호출 함수 (추가됨)
+        // Finnhub 지수 호출 (3초 뒤 실행)
         async function fetchFinnhub() {
-            const items = [
-                { s: "^GSPC", id: "SP500" },
-                { s: "^IXIC", id: "NASDAQ" },
-                { s: "^DJI", id: "DOW" },
-                { s: "^VIX", id: "VIX" }
+            const f_items = [
+                { s: "^GSPC", id: "SP500" }, { s: "^IXIC", id: "NASDAQ" },
+                { s: "^DJI", id: "DOW" }, { s: "^VIX", id: "VIX" }
             ];
-
-            for (let i = 0; i < items.length; i++) {
+            for (let i = 0; i < f_items.length; i++) {
                 setTimeout(async () => {
                     try {
-                        const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${items[i].s}&token=${F_KEY}`);
+                        const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${f_items[i].s}&token=${F_KEY}`);
                         const d = await res.json();
                         if (d && d.c) {
                             const c = parseFloat(d.c), p = parseFloat(d.pc);
-                            document.getElementById(items[i].id).innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, items[i].id);
+                            document.getElementById(f_items[i].id).innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, f_items[i].id);
                         }
-                    } catch (e) { console.error(items[i].id + " 로드 실패"); }
-                }, i * 500); // 0.5초 간격으로 순차 호출
+                    } catch (e) { console.error(f_items[i].id + " 실패"); }
+                }, i * 600);
             }
         }
 
         async function init() {
-            // Twelve Data 항목 (8종 고정)
+            // Twelve Data 기존 항목들
             const t_items = [
-                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
-                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, 
-                {s:"XRP/USD", id:"XRP"}, {s:"XAU/USD", id:"GOLD"}
+                {s:"DXY", id:"DXY"}, {s:"TMUBMUSD10Y", id:"US10Y"}, {s:"TMUBMUSD02Y", id:"US2Y"},
+                {s:"USD/KRW", id:"USD/KRW"}, {s:"XAU/USD", id:"GOLD"}, {s:"HG", id:"COPPER"},
+                {s:"NG", id:"GAS"}, {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}
             ];
 
             await Promise.all(t_items.map(async item => {
@@ -100,22 +94,15 @@
                     const d = await r.json();
                     if(d && d.close){
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        const el = document.getElementById(item.id);
-                        if(el) {
-                            el.innerText = (item.id === "XRP") ? c.toFixed(4) : c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, item.id);
-                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; }
-                        }
+                        document.getElementById(item.id).innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                        formatChange(c, p, item.id);
                     }
-                } catch(e){ console.error(item.id + " 로드 실패"); }
+                } catch(e){ console.error(item.id + " 실패"); }
             }));
 
             document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString();
-            
-            // Twelve Data 호출 완료 3초 후 Finnhub 실행
-            setTimeout(fetchFinnhub, 3000);
+            setTimeout(fetchFinnhub, 3000); 
         }
-
         window.onload = init;
     </script>
 </body>
