@@ -69,6 +69,7 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
+        const ALPHA_KEY = "NG255JZSTJEJFW4I"; // 알파 밴티지 키 추가
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
@@ -89,6 +90,42 @@
             if(cEl) {
                 cEl.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)</span>`;
             }
+        }
+
+        // Alpha Vantage 전용 호출 함수 (추가 로직)
+        async function fetchAlphaData() {
+            // [1] S&P 500 (SPY로 대체하여 호출) - 로딩 5초 후 실행
+            setTimeout(async () => {
+                try {
+                    const r = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=SPY&apikey=${ALPHA_KEY}`);
+                    const d = await r.json();
+                    const q = d["Global Quote"];
+                    if(q && q["05. price"]) {
+                        const c = parseFloat(q["05. price"]), p = parseFloat(q["08. previous close"]);
+                        const el = document.getElementById("SP500");
+                        if(el) {
+                            el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, "SP500");
+                        }
+                    }
+                } catch(e) { console.error("Alpha S&P500 로드 실패"); }
+            }, 5000);
+
+            // [2] 미국채 10년물 - 로딩 7초 후 실행
+            setTimeout(async () => {
+                try {
+                    const r = await fetch(`https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=10year&apikey=${ALPHA_KEY}`);
+                    const d = await r.json();
+                    if(d.data && d.data[0]) {
+                        const c = parseFloat(d.data[0].value), p = parseFloat(d.data[1].value);
+                        const el = document.getElementById("US10Y");
+                        if(el) {
+                            el.innerText = c.toFixed(2) + "%";
+                            formatChange(c, p, "US10Y");
+                        }
+                    }
+                } catch(e) { console.error("Alpha 10Y 금리 로드 실패"); }
+            }, 7000);
         }
 
         async function init() {
@@ -119,6 +156,9 @@
             }));
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
+            
+            // Alpha Vantage 호출 시작
+            fetchAlphaData();
         }
 
         function updateKospiUsd() {
