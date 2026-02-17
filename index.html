@@ -74,12 +74,27 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
+        // 기존 fetchData 유지 (Allorigins 프록시 사용)
         async function fetchData(url) {
             try {
                 const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
                 const data = await res.json();
                 return JSON.parse(data.contents);
             } catch (e) { return null; }
+        }
+
+        // --- FRED 전용 직통 fetchData (성능 향상용) ---
+        async function fetchFredDirect(url) {
+            try {
+                // Allorigins보다 가볍고 FRED와 호환성이 좋은 프록시 경로 사용
+                const res = await fetch(`https://cors-anywhere.herokuapp.com/${url}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (!res.ok) { // 만약 Heroku 프록시가 제한에 걸렸을 경우 기존 방식으로 자동 전환
+                    return await fetchData(url);
+                }
+                return await res.json();
+            } catch (e) { return await fetchData(url); }
         }
 
         function formatChange(c, p, id) {
@@ -92,7 +107,6 @@
             }
         }
 
-        // --- FRED 데이터 호출 (국채 3종) ---
         async function fetchFredData() {
             const fredSeries = [
                 { s: "DGS30", id: "US30Y" },
@@ -103,7 +117,8 @@
             for (const item of fredSeries) {
                 try {
                     const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
-                    const data = await fetchData(url);
+                    // FRED 전용 직통 호출 시도
+                    const data = await fetchFredDirect(url);
                     if (data && data.observations && data.observations.length >= 2) {
                         const c = parseFloat(data.observations[0].value);
                         const p = parseFloat(data.observations[1].value);
@@ -120,7 +135,6 @@
             updateCalculated();
         }
 
-        // --- Yahoo Finance 통합 호출 (국채 제외) ---
         async function fetchYahooData() {
             const symbolMap = {
                 "DX-Y.NYB": "DXY", "^GSPC": "SP500", "^IXIC": "NASDAQ", 
@@ -180,7 +194,7 @@
         }
 
         async function init() {
-            // --- 기존 Twelve Data 유지 (손대지 않음) ---
+            // Twelve Data (절대 보존)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
@@ -205,7 +219,7 @@
                 } catch(e){ console.error(item.id + " 로드 실패"); }
             }));
 
-            // --- FRED 및 야후 데이터 호출 ---
+            // FRED 및 야후 데이터 호출
             fetchFredData();
             fetchYahooData();
 
