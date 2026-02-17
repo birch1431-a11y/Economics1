@@ -92,14 +92,18 @@
         }
 
         async function init() {
-            // Twelve Data 항목 정의
+            // Twelve Data에서 가져올 최종 7개 지표
             const tdata_items = [
-                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
-                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
+                {s:"DXY", id:"DXY"},
+                {s:"USD/KRW", id:"USD/KRW"},
+                {s:"SP500", id:"SP500"},
+                {s:"KOSPI", id:"KOSPI"},
+                {s:"US10Y", id:"US10Y"},
+                {s:"GOLD", id:"GOLD"},
+                {s:"BTC/USD", id:"BTC"}
             ];
 
-            // 모든 항목을 동시에 fetch
+            // 동시에 fetch
             await Promise.all(tdata_items.map(async item => {
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
@@ -108,10 +112,12 @@
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
                         if(el) {
-                            if(item.id === "XRP") el.innerText = c.toFixed(4);
+                            if(item.id === "BTC") el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
+                            if(item.id === "KOSPI"){ live.k=c; live.kp=p; updateKrMcap(c,p); updateKospiUsd(); }
+                            if(item.id === "US10Y"){ live.y10=c; live.y10p=p; updateSpread(); }
                         }
                     }
                 } catch(e){ console.error(item.id + " 로드 실패"); }
@@ -125,6 +131,24 @@
                 const c = live.k/live.u, p = live.kp/live.up;
                 const el = document.getElementById("KOSPI_USD");
                 if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
+            }
+        }
+
+        function updateKrMcap(c, p) {
+            const m = BASE_KR_MCAP * (c/p);
+            const el = document.getElementById("KR_MCAP");
+            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+        }
+
+        function updateSpread() {
+            if(live.y10 && live.y2) {
+                const s = live.y10-live.y2, sp = live.y10p-live.y2p;
+                const el = document.getElementById("SPREAD");
+                if(el) { 
+                    el.innerText = s.toFixed(2) + "%p"; 
+                    formatChange(s, sp, "SPREAD"); 
+                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
+                }
             }
         }
 
