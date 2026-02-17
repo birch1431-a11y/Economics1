@@ -87,8 +87,9 @@
 
         async function init(){
             const items=[
-                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"},
-                {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"}, {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}
+                {s:"USD/KRW", id:"USD/KRW", dp:2}, {s:"JPY/KRW", id:"JPY/KRW", dp:2}, {s:"EUR/KRW", id:"EUR/KRW", dp:2},
+                {s:"XAU/USD", id:"GOLD", dp:2}, {s:"XAG/USD", id:"SILVER", dp:3}, 
+                {s:"BTC/USD", id:"BTC", dp:2}, {s:"ETH/USD", id:"ETH", dp:2}
             ];
             for(const item of items){
                 const d = await fetchTData(item.s);
@@ -96,7 +97,7 @@
                     const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                     const el=document.getElementById(item.id);
                     if(el){
-                        el.innerText=c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                        el.innerText=c.toLocaleString(undefined,{minimumFractionDigits:item.dp, maximumFractionDigits:item.dp});
                         formatChange(c,p,item.id);
                         if(item.id==="USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                     }
@@ -110,7 +111,7 @@
             const kEl=document.getElementById("KOSPI");
             if(kEl && live.u){
                 const c=parseFloat(kEl.innerText.replace(/,/g,''))/live.u;
-                const p=c; // 임시, 이전 값 없으면 0으로 처리
+                const p=c;
                 const el=document.getElementById("KOSPI_USD");
                 if(el){ el.innerText=c.toFixed(2); formatChange(c,p,"KOSPI_USD"); }
             }
