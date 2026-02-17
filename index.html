@@ -76,9 +76,9 @@
 
         async function fetchData(url) {
             try {
-                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-                const data = await res.json();
-                return JSON.parse(data.contents);
+                // 합의 내용: allorigins 대신 codetabs 프록시 사용
+                const res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`);
+                return await res.json();
             } catch (e) { return null; }
         }
 
@@ -94,7 +94,6 @@
 
         async function getYahoo(ticker, id) {
             try {
-                // 원칙 2에 따라 간격을 1h로 조정하여 차단 방지 시도
                 const data = await fetchData(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1h&range=1d`);
                 if (data && data.chart && data.chart.result) {
                     const meta = data.chart.result[0].meta;
@@ -127,7 +126,6 @@
             } catch (err) { console.error(id + " 로드 실패"); }
         }
 
-        // Twelve Data Batch 호출 구현 (속도 개선)
         async function fetchTwelveBatch() {
             const symbols = "USD/KRW,JPY/KRW,EUR/KRW,CNY/KRW,BTC/USD,ETH/USD,XRP/USD";
             try {
@@ -198,7 +196,6 @@
         }
 
         async function init() {
-            // 야후 데이터들
             await getYahoo("VTI", "VTI_HIDDEN");
             const yahooJobs = [
                 ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
@@ -212,10 +209,8 @@
                 await new Promise(r => setTimeout(r, 300));
             }
 
-            // 트웰브데이터 일괄 호출
             fetchTwelveBatch();
 
-            // Shiller PER
             fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
                 if(d && d.chart && d.chart.result) {
                     const v = d.chart.result[0].meta.regularMarketPrice;
