@@ -83,10 +83,60 @@
             }
         }
 
-        async function fetchTwelveDataBatch() {
-            // Twelve Data 내부 호출용 심볼 (화면 표시용 이름 아님)
-            // 지수 및 핵심 7개: DXY(달러지수), USD/KRW(원/달러), SPX(S&P500), IXIC(NASDAQ), KOSPI(KOSPI), XAU/USD(금), BTC/USD(비트코인)
-            const symbols = "DXY,USD/KRW,SPX,IXIC,KOSPI,XAU/USD,BTC/USD";
+        async function fetchTwelveData(symbol, id) {
             try {
-                const res = await fetch(`https://api.twelvedata.com/quote?symbol=${symbols}&apikey=${MY_API_KEY}`);
-                const data = await res.json();
+                const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbol)}&apikey=${MY_API_KEY}`;
+                const res = await fetch(url);
+                const d = await res.json();
+                
+                if(d && d.close) {
+                    const c = parseFloat(d.close), p = parseFloat(d.previous_close);
+                    const el = document.getElementById(id);
+                    if(el) {
+                        if(id === "XRP") el.innerText = c.toFixed(4);
+                        else if(id === "SILVER") el.innerText = c.toFixed(3);
+                        else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                        formatChange(c, p, id);
+                    }
+                    if (id === "KOSPI") { live.k = c; live.kp = p; updateKrMcap(c, p); }
+                    if (id === "USD/KRW") { live.u = c; live.up = p; }
+                    if (id === "SP500") updateUsMcap(c, p);
+                    updateKospiUsd();
+                }
+            } catch (e) { console.error(id + " 실패"); }
+        }
+
+        function updateUsMcap(c, p) {
+            const m = BASE_US_MCAP * (c/p);
+            const el = document.getElementById("US_MCAP");
+            if(el) {
+                el.innerText = m.toFixed(2);
+                formatChange(m, BASE_US_MCAP, "US_MCAP");
+                const bft = (m/27.94*100).toFixed(1);
+                const bEl = document.getElementById("BUFFETT");
+                if(bEl) { 
+                    bEl.innerText = bft + "%"; 
+                    bEl.className = "value " + (bft>=150?"status-danger":bft>=120?"status-warning":"status-safe"); 
+                }
+            }
+        }
+
+        function updateKrMcap(c, p) {
+            const m = BASE_KR_MCAP * (c/p);
+            const el = document.getElementById("KR_MCAP");
+            if(el) { el.innerText = Math.floor(m).toLocaleString(); formatChange(m, BASE_KR_MCAP, "KR_MCAP"); }
+        }
+
+        function updateKospiUsd() {
+            if(live.k && live.u) {
+                const c = live.k/live.u, p = live.kp/live.up;
+                const el = document.getElementById("KOSPI_USD");
+                if(el) { el.innerText = c.toFixed(2); formatChange(c, p, "KOSPI_USD"); }
+            }
+        }
+
+        async function init() {
+            // Twelve Data 무료 플랜의 안정성을 위해 지표 리스트와 호출 간격을 최적화함
+            const jobs = [
+                ["DXY", "DXY"], ["USD/KRW", "USD/KRW"], ["SPX1", "SP500"], 
+                ["IXIC", "NASDAQ"], ["KOS
