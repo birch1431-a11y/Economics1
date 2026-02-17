@@ -69,7 +69,6 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const ALPHA_API_KEY = "NG255JZSTJEJFW4I";
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
@@ -93,11 +92,12 @@
         }
 
         async function init() {
-            // Twelve Data 항목 정의
+            // Twelve Data 항목 정의 (금 추가)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
+                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"},
+                {s:"XAU/USD", id:"GOLD"} // 금 추가
             ];
 
             // 모든 항목을 동시에 fetch
@@ -117,27 +117,6 @@
                     }
                 } catch(e){ console.error(item.id + " 로드 실패"); }
             }));
-
-            // Alpha Vantage 항목 (1시간 지연 허용)
-            const alpha_items = [
-                {symbol:"^KS11", id:"KOSPI"}, {symbol:"^KQ11", id:"KOSDAQ"},
-                {symbol:"^GSPC", id:"SP500"}, {symbol:"^IXIC", id:"NASDAQ"},
-                {symbol:"WTI", id:"WTI"}
-            ];
-            alpha_items.forEach(async item=>{
-                try{
-                    const r = await fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${item.symbol}&interval=60min&apikey=${ALPHA_API_KEY}`);
-                    const d = await r.json();
-                    if(d && d["Time Series (60min)"]){
-                        const times = Object.keys(d["Time Series (60min)"]).sort().reverse();
-                        const latest = parseFloat(d["Time Series (60min)"][times[0]]["4. close"]);
-                        const el = document.getElementById(item.id);
-                        if(el){
-                            el.innerText = latest.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                        }
-                    }
-                } catch(e){ console.error("Alpha "+item.id+" 로드 실패"); }
-            });
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
         }
