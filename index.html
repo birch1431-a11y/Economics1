@@ -69,8 +69,7 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const ALPHA_VANTAGE_KEY = "NG255JZSTJEJFW4I"; // 요청하신 알파벤티지 키 적용
-        
+        const AV_KEY = "NG255JZSTJEJFW4I";
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
         async function fetchData(url) {
@@ -99,27 +98,20 @@
                     const cur = meta.regularMarketPrice;
                     const prev = meta.previousClose;
                     const el = document.getElementById(id);
-
                     if (el) {
-                        let displayVal = "";
-                        if (id === "SILVER") { displayVal = cur.toFixed(3); } 
-                        else if (id === "US30Y" || id === "US10Y" || id === "US2Y") { displayVal = cur.toFixed(2) + "%"; } 
-                        else { displayVal = cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
+                        let displayVal = (id === "SILVER") ? cur.toFixed(3) : 
+                                         (id === "US30Y" || id === "US10Y" || id === "US2Y") ? cur.toFixed(2) + "%" : 
+                                         cur.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
                         el.innerText = displayVal;
                         formatChange(cur, prev, id);
-
-                        // VIX 지수(참값) 색상 로직
                         if (id === "VIX") {
-                            if (cur >= 30) el.className = "value status-danger";
-                            else if (cur >= 20) el.className = "value status-warning";
-                            else el.className = "value status-safe";
+                            el.className = "value " + (cur >= 30 ? "status-danger" : cur >= 20 ? "status-warning" : "status-safe");
                         }
                     }
-
                     if(id === "KOSPI") { live.k=cur; live.kp=prev; }
-                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; updateSpread(); }
-                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; updateSpread(); }
-                    updateKospiUsd();
+                    if(id === "US10Y") { live.y10=cur; live.y10p=prev; }
+                    if(id === "US2Y") { live.y2=cur; live.y2p=prev; }
+                    updateKospiUsd(); updateSpread();
                 }
             } catch (err) { console.error(id + " 로드 실패"); }
         }
@@ -136,46 +128,33 @@
             if(live.y10 && live.y2) {
                 const s = live.y10-live.y2, sp = live.y10p-live.y2p;
                 const el = document.getElementById("SPREAD");
-                if(el) { 
-                    el.innerText = s.toFixed(2) + "%p"; 
-                    formatChange(s, sp, "SPREAD"); 
-                    el.className = "value " + (s<0?"status-danger":"status-safe"); 
+                if(el) {
+                    el.innerText = s.toFixed(2) + "%p";
+                    formatChange(s, sp, "SPREAD");
+                    el.className = "value " + (s < 0 ? "status-danger" : "status-safe");
                 }
             }
         }
 
-        // Alpha Vantage를 통한 경제 지표 참값 입수 함수 (예시: 실시간성보다 신뢰도 중시)
-        async function getAlphaVantageEconomic(functionName, elementId) {
-            try {
-                const res = await fetch(`https://www.alphavantage.co/query?function=${functionName}&apikey=${ALPHA_VANTAGE_KEY}`);
-                const d = await res.json();
-                if(d && d.data && d.data[0]) {
-                    const val = parseFloat(d.data[0].value);
-                    const el = document.getElementById(elementId);
-                    if(el) el.innerText = val.toLocaleString();
-                }
-            } catch (e) { console.error(elementId + " AV 로드 실패"); }
-        }
-
         async function init() {
+            // 1. Yahoo Finance 기반 지표 (VIX 참값 포함)
             const jobs = [
                 ["DX-Y.NYB","DXY"], ["^GSPC","SP500"], ["^IXIC","NASDAQ"], ["^DJI","DOW"],
                 ["^KS11","KOSPI"], ["^KQ11","KOSDAQ"], ["^TYX","US30Y"], ["^TNX","US10Y"], ["^IRX","US2Y"],
                 ["GC=F","GOLD"], ["SI=F","SILVER"], ["HG=F","COPPER"], ["PL=F","PLATINUM"], ["CL=F","WTI"],
-                ["^VIX", "VIX"] // VIXY(ETF)가 아닌 ^VIX(참값 지수)로 수정
+                ["^VIX", "VIX"]
             ];
-            
             for (const j of jobs) {
-                getYahoo(j[0], j[1]);
-                await new Promise(r => setTimeout(r, 250));
+                await getYahoo(j[0], j[1]);
+                await new Promise(r => setTimeout(r, 100));
             }
 
+            // 2. Twelve Data 기반 외환/코인
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}
             ];
-
             for (const item of tdata_items) {
                 fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`)
                 .then(r=>r.json()).then(d=>{
@@ -183,29 +162,25 @@
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
                         if(el) {
-                            if(item.id === "XRP") el.innerText = c.toFixed(4);
-                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            el.innerText = (item.id === "XRP") ? c.toFixed(4) : c.toLocaleString(undefined,{minimumFractionDigits:2});
                             formatChange(c, p, item.id);
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
                         }
                     }
-                }).catch(e => console.error(item.id + " 로드 실패"));
-                await new Promise(r => setTimeout(r, 800));
+                });
+                await new Promise(r => setTimeout(r, 600));
             }
 
-            // 쉴러 PER 참값 (Yahoo Finance 데이터 유지)
+            // 3. Shiller PER (Yahoo)
             fetchData("https://query1.finance.yahoo.com/v8/finance/chart/CAPE?interval=1d&range=1d").then(d=>{
                 if(d && d.chart && d.chart.result) {
                     const v = d.chart.result[0].meta.regularMarketPrice;
                     const el = document.getElementById("SHILLER");
-                    if(el) { 
-                        el.innerText = v.toFixed(1); 
-                        el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); 
-                    }
+                    if(el) { el.innerText = v.toFixed(1); el.className = "value " + (v>=30?"status-danger":v>=20?"status-warning":"status-safe"); }
                 }
             });
 
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 3000);
+            document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
         }
         window.onload = init;
     </script>
