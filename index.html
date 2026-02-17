@@ -1,160 +1,32 @@
-<!-- 🔥 HEAD / STYLE 기존 그대로 유지 -->
-<!-- 위 HTML 부분은 동일하므로 생략 없이 그대로 사용 -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔄 글로벌 경제 상황판</title>
+<style>
+body { background:#121212; color:#e0e0e0; font-family:-apple-system,sans-serif; padding:15px; margin:0;}
+.header { text-align:center;font-size:1.1rem;font-weight:bold;margin-bottom:25px;color:#c5a059;cursor:pointer;padding:10px;border:1px solid #444;border-radius:8px;}
+.hr-short{border:0;border-top:2px solid #c5a059;width:30px;margin:5px 0 10px 0;}
+.category{margin-top:25px;font-size:0.95rem;color:#fff;font-weight:bold;}
+.item-row{display:flex;justify-content:space-between;align-items:center;padding:10px 5px;border-bottom:1px solid #222;}
+.label{font-size:0.95rem;color:#bbb;}
+.val-container{text-align:right;}
+.value{font-size:1rem;font-weight:600;color:#fff;display:block;}
+.change{font-size:0.75rem;margin-top:2px;}
+.up{color:#ff4444;} .down{color:#4488ff;}
+.footer-copy{text-align:center;font-size:0.7rem;color:#555;margin:40px 0 10px 0;border-top:1px solid #222;padding-top:20px;}
+</style>
+</head>
+<body>
 
-<script>
-const TD_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-const ALPHA_KEY = "NG255JZSTJEJFW4I";
+<div class="header" onclick="location.reload()">🔄 글로벌 경제 상황판</div>
 
-const CACHE_INTERVAL = 1000 * 60 * 60 * 6; // 하루 4회 = 6시간
+<div class="category">외환</div><hr class="hr-short">
+<div class="item-row"><span class="label">달러지수</span><span class="value" id="DXY">--</span></div>
+<div class="item-row"><span class="label">원/달러</span><span class="value" id="USD/KRW">--</span></div>
+<div class="item-row"><span class="label">원/엔</span><span class="value" id="JPY/KRW">--</span></div>
 
-let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
-
-function formatChange(c, p, id) {
-    if(!p || p===0) return;
-    const diff = c - p, pct = (diff/p*100).toFixed(2);
-    const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
-    const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
-    const el = document.getElementById(id+"-c");
-    if(el){
-        el.innerHTML=`<span class="${cls}">${sign} ${Math.abs(diff).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} (${pct}%)</span>`;
-    }
-}
-
-function setValue(id, cur, prev, digit=2, suffix=""){
-    const el=document.getElementById(id);
-    if(!el || !cur) return;
-    el.innerText = Number(cur).toLocaleString(undefined,{minimumFractionDigits:digit,maximumFractionDigits:digit})+suffix;
-    formatChange(Number(cur),Number(prev),id);
-}
-
-function cacheFetch(key, fetchFunc){
-    const cached=localStorage.getItem(key);
-    if(cached){
-        const obj=JSON.parse(cached);
-        if(Date.now()-obj.time < CACHE_INTERVAL){
-            return Promise.resolve(obj.data);
-        }
-    }
-    return fetchFunc().then(data=>{
-        if(data){
-            localStorage.setItem(key,JSON.stringify({time:Date.now(),data}));
-        }
-        return data;
-    });
-}
-
-/* ==============================
-   TwelveData (8개)
-================================ */
-
-async function fetchTD(symbol,id,digit=2){
-    return cacheFetch("TD_"+symbol, async ()=>{
-        const r=await fetch(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${TD_KEY}`);
-        const d=await r.json();
-        return d;
-    }).then(d=>{
-        if(d && d.close){
-            const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-            setValue(id,c,p,digit);
-            if(id==="KOSPI"){ live.k=c; live.kp=p; updateKospiUsd(); updateKrMcap(c,p); }
-            if(id==="USD/KRW"){ live.u=c; live.up=p; updateKospiUsd(); }
-            if(id==="US10Y"){ live.y10=c; live.y10p=p; updateSpread(); }
-            if(id==="US2Y"){ live.y2=c; live.y2p=p; updateSpread(); }
-        }
-    });
-}
-
-/* ==============================
-   Alpha (4개)
-================================ */
-
-async function fetchAlpha(symbol,id,digit=2){
-    return cacheFetch("ALPHA_"+symbol, async ()=>{
-        const r=await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_KEY}`);
-        const d=await r.json();
-        return d;
-    }).then(d=>{
-        if(d && d["Global Quote"]){
-            const g=d["Global Quote"];
-            const c=parseFloat(g["05. price"]);
-            const p=parseFloat(g["08. previous close"]);
-            setValue(id,c,p,digit);
-        }
-    });
-}
-
-/* ==============================
-   계산 로직 (기존 유지)
-================================ */
-
-function updateKospiUsd(){
-    if(live.k && live.u){
-        const c=live.k/live.u;
-        const p=live.kp/live.up;
-        setValue("KOSPI_USD",c,p,2);
-    }
-}
-
-function updateKrMcap(c,p){
-    const BASE_KR_MCAP=4660;
-    const m=BASE_KR_MCAP*(c/p);
-    const el=document.getElementById("KR_MCAP");
-    if(el){
-        el.innerText=Math.floor(m).toLocaleString();
-        formatChange(m,BASE_KR_MCAP,"KR_MCAP");
-    }
-}
-
-function updateSpread(){
-    if(live.y10 && live.y2){
-        const s=live.y10-live.y2;
-        const sp=live.y10p-live.y2p;
-        const el=document.getElementById("SPREAD");
-        if(el){
-            el.innerText=s.toFixed(2)+"%p";
-            formatChange(s,sp,"SPREAD");
-            el.className="value "+(s<0?"status-danger":"status-safe");
-        }
-    }
-}
-
-/* ==============================
-   INIT
-================================ */
-
-async function init(){
-
-    /* Twelve 8개 */
-    await fetchTD("USD/KRW","USD/KRW");
-    await fetchTD("BTC/USD","BTC");
-    await fetchTD("ETH/USD","ETH");
-    await fetchTD("XRP/USD","XRP",4);
-    await fetchTD("^GSPC","SP500");
-    await fetchTD("^IXIC","NASDAQ");
-    await fetchTD("^DJI","DOW");
-    await fetchTD("^KS11","KOSPI");
-
-    /* Alpha 4개 */
-    await fetchAlpha("DX-Y.NYB","DXY");
-    await fetchAlpha("^VIX","VIX");
-    await fetchAlpha("JPYKRW=X","JPY/KRW");
-    await fetchAlpha("^KQ11","KOSDAQ");
-
-    /* 미 국채 */
-    await fetchTD("^TNX","US10Y");
-    await fetchTD("^IRX","US2Y");
-    await fetchTD("^TYX","US30Y");
-
-    /* 원자재 */
-    await fetchTD("GC=F","GOLD");
-    await fetchTD("SI=F","SILVER",3);
-    await fetchTD("HG=F","COPPER");
-    await fetchTD("PL=F","PLATINUM");
-    await fetchTD("CL=F","WTI");
-
-    document.getElementById("status-msg").innerText =
-        "최종 업데이트: "+new Date().toLocaleTimeString();
-}
-
-window.onload=init;
-</script>
+<div class="category">주요 증시지표</div><hr class="hr-short">
+<div class="item-row"><span class="label">S&P 500</span><span class="value" id="SP500">--</span></div>
+<div class="item-row"><span class="label">NASDAQ</span><span class="va
