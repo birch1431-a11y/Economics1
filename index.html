@@ -71,16 +71,6 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        // [유지] 기존 프록시 함수 (차단 가능성 높음)
-        async function fetchData(url) {
-            try {
-                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-                const data = await res.json();
-                return JSON.parse(data.contents);
-            } catch (e) { return null; }
-        }
-
-        // [유지] 국채 성공 방식 전용 통로
         async function fetchFredDirect(url) {
             try {
                 const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
@@ -90,6 +80,7 @@
         }
 
         function formatChange(c, p, id) {
+            if(!p || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
@@ -99,7 +90,7 @@
             }
         }
 
-        // [보존] FRED 국채 데이터 호출 (수정 없음)
+        // [보존] FRED 국채 3종 성공 로직
         async function fetchFredData() {
             const fredSeries = [{s:"DGS30", id:"US30Y"}, {s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"}];
             for (const item of fredSeries) {
@@ -120,38 +111,6 @@
                 } catch (e) {}
             }
             updateCalculated();
-        }
-
-        // [수정 승인] 야후 지수 데이터 호출 (달러지수, S&P 500, 코스피 포함)
-        async function fetchYahooData() {
-            const symbolMap = {
-                "DX-Y.NYB": "DXY", "^GSPC": "SP500", "^IXIC": "NASDAQ", 
-                "^DJI": "DOW", "^KS11": "KOSPI", "^KQ11": "KOSDAQ",
-                "SI=F": "SILVER", "HG=F": "COPPER", "PL=F": "PLATINUM", 
-                "CL=F": "WTI", "^VIX": "VIX"
-            };
-            const symbols = Object.keys(symbolMap).join(',');
-            try {
-                const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
-                // 국채 성공 시 사용했던 fetchFredDirect 방식으로 통로 교체
-                const data = await fetchFredDirect(url); 
-                if (data && data.quoteResponse && data.quoteResponse.result) {
-                    data.quoteResponse.result.forEach(quote => {
-                        const targetId = symbolMap[quote.symbol];
-                        if (targetId) {
-                            const c = quote.regularMarketPrice, p = quote.regularMarketPreviousClose;
-                            const el = document.getElementById(targetId);
-                            if (el) {
-                                el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                                formatChange(c, p, targetId);
-                            }
-                            if(targetId === "KOSPI") { live.k = c; live.kp = p; }
-                            if(targetId === "SP500") { updateValuations(c); }
-                        }
-                    });
-                    updateCalculated();
-                }
-            } catch (e) {}
         }
 
         function updateCalculated() {
@@ -180,36 +139,52 @@
             document.getElementById("SHILLER").innerText = "34.5";
         }
 
+        // Twelve Data 범용 호출 함수
+        async function callTwelve(symbol, id) {
+            try {
+                const r = await fetch(`https://api.twelvedata.com/quote?symbol=${symbol}&apikey=${MY_API_KEY}`);
+                const d = await r.json();
+                if(d && d.close){
+                    const c = parseFloat(d.close), p = parseFloat(d.previous_close);
+                    const el = document.getElementById(id);
+                    if(el) {
+                        if(id === "XRP") el.innerText = c.toFixed(4);
+                        else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                        formatChange(c, p, id);
+                        if(id === "USD/KRW"){ live.u=c; live.up=p; updateCalculated(); }
+                        if(id === "KOSPI"){ live.k=c; live.kp=p; updateCalculated(); }
+                        if(id === "SP500"){ updateValuations(c); }
+                    }
+                }
+            } catch(e){}
+        }
+
         async function init() {
-            // [보존] Twelve Data 8종 (수정 없음)
-            const tdata_items = [
+            // [보존] 기존 성공 8개 항목
+            const base_8 = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"},
                 {s:"XAU/USD", id:"GOLD"}
             ];
 
-            await Promise.all(tdata_items.map(async item => {
-                try {
-                    const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
-                    const d = await r.json();
-                    if(d && d.close){
-                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        const el = document.getElementById(item.id);
-                        if(el) {
-                            if(item.id === "XRP") el.innerText = c.toFixed(4);
-                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, item.id);
-                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateCalculated(); }
-                        }
-                    }
-                } catch(e){}
-            }));
+            // 1. 기존 8개 즉시 로드
+            await Promise.all(base_8.map(item => callTwelve(item.s, item.id)));
 
+            // 2. 국채 로드
             fetchFredData();
-            fetchYahooData();
 
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
+            // 3. [추가] 10초 대기 후 핵심 3대 지수 로드 (호출 제한 방지)
+            document.getElementById('status-msg').innerText = "핵심 지표 연결 중 (10초 대기)...";
+            setTimeout(async () => {
+                const extra_3 = [
+                    {s:"DXY", id:"DXY"},
+                    {s:"SPX", id:"SP500"},
+                    {s:"KOSPI", id:"KOSPI"}
+                ];
+                await Promise.all(extra_3.map(item => callTwelve(item.s, item.id)));
+                document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString();
+            }, 10000); 
         }
 
         window.onload = init;
