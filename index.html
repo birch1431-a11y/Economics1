@@ -136,11 +136,11 @@
                         if (targetId) {
                             const c = quote.regularMarketPrice, p = quote.regularMarketPreviousClose;
                             const el = document.getElementById(targetId);
-                            if (el) {
+                            if (el && el.innerText === "--") { // Twelve Data에서 실패한 경우만 야후 데이터 사용
                                 el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
                                 formatChange(c, p, targetId);
                             }
-                            if(targetId === "KOSPI") { live.k = c; live.kp = p; }
+                            if(targetId === "KOSPI" && live.k === 0) { live.k = c; live.kp = p; }
                             if(targetId === "SP500") { updateValuations(c); }
                         }
                     });
@@ -176,13 +176,13 @@
         }
 
         async function init() {
-            // Twelve Data (요청에 따라 지표 대폭 보완)
+            // Twelve Data (인덱스 심볼 미세 조정)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"},
                 {s:"XAU/USD", id:"GOLD"},
-                {s:"DXY", id:"DXY"}, {s:"GSPC", id:"SP500"}, {s:"KS11", id:"KOSPI"}, {s:"VIX", id:"VIX"}
+                {s:"DX", id:"DXY"}, {s:"SPX", id:"SP500"}, {s:"KS11", id:"KOSPI"}, {s:"VIX", id:"VIX"}
             ];
 
             await Promise.all(tdata_items.map(async item => {
@@ -197,16 +197,15 @@
                             else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
                             
-                            // 내부 계산을 위한 값 저장
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; }
                             if(item.id === "KOSPI"){ live.k=c; live.kp=p; }
                             if(item.id === "SP500"){ updateValuations(c); }
-                            updateCalculated();
                         }
                     }
                 } catch(e){}
             }));
 
+            updateCalculated();
             fetchFredData();
             fetchYahooData();
 
