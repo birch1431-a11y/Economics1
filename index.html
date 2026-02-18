@@ -71,7 +71,7 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        // 기존 fetchData (Twelve Data/Yahoo용)
+        // [유지] 기존 프록시 함수 (차단 가능성 높음)
         async function fetchData(url) {
             try {
                 const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
@@ -80,10 +80,9 @@
             } catch (e) { return null; }
         }
 
-        // --- FRED 전용 독립 fetchData (보안 강화 통로) ---
+        // [유지] 국채 성공 방식 전용 통로
         async function fetchFredDirect(url) {
             try {
-                // Allorigins 대신 FRED와 궁합이 좋은 별도의 우회 서버 사용
                 const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
                 if (res.ok) return await res.json();
                 return null;
@@ -100,6 +99,7 @@
             }
         }
 
+        // [보존] FRED 국채 데이터 호출 (수정 없음)
         async function fetchFredData() {
             const fredSeries = [{s:"DGS30", id:"US30Y"}, {s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"}];
             for (const item of fredSeries) {
@@ -122,6 +122,7 @@
             updateCalculated();
         }
 
+        // [수정 승인] 야후 지수 데이터 호출 (달러지수, S&P 500, 코스피 포함)
         async function fetchYahooData() {
             const symbolMap = {
                 "DX-Y.NYB": "DXY", "^GSPC": "SP500", "^IXIC": "NASDAQ", 
@@ -132,7 +133,8 @@
             const symbols = Object.keys(symbolMap).join(',');
             try {
                 const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
-                const data = await fetchData(url);
+                // 국채 성공 시 사용했던 fetchFredDirect 방식으로 통로 교체
+                const data = await fetchFredDirect(url); 
                 if (data && data.quoteResponse && data.quoteResponse.result) {
                     data.quoteResponse.result.forEach(quote => {
                         const targetId = symbolMap[quote.symbol];
@@ -179,7 +181,7 @@
         }
 
         async function init() {
-            // Twelve Data (8개 - 절대 보존)
+            // [보존] Twelve Data 8종 (수정 없음)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
@@ -204,7 +206,6 @@
                 } catch(e){}
             }));
 
-            // FRED와 야후 데이터 병렬 로드 (절대 Twelve Data를 방해하지 않음)
             fetchFredData();
             fetchYahooData();
 
