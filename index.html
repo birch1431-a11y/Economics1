@@ -99,26 +99,26 @@
         }
 
         async function fetchFredData() {
+            // S&P 500(SP500)을 FRED 시리즈에 추가
             const fredSeries = [
                 {s:"DGS30", id:"US30Y"}, {s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"},
                 {s:"SP500", id:"SP500"}
             ];
             for (const item of fredSeries) {
                 try {
-                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=10`;
+                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=5`;
                     const data = await fetchFredDirect(url);
                     if (data && data.observations) {
-                        // 유효한 숫자 데이터만 필터링 ('.' 제외)
                         const validObs = data.observations.filter(o => o.value !== ".");
                         if (validObs.length >= 2) {
                             const c = parseFloat(validObs[0].value);
                             const p = parseFloat(validObs[1].value);
                             const el = document.getElementById(item.id);
                             if (el) {
-                                // S&P 500은 종래 방식대로 소수점 없이 표기
+                                // S&P 500은 종래 방식(정수+콤마) 유지
                                 if(item.id === "SP500") {
                                     el.innerText = Math.round(c).toLocaleString();
-                                    updateValuations(c, p); 
+                                    updateValuations(c); 
                                 } else {
                                     el.innerText = c.toFixed(2);
                                 }
@@ -134,6 +134,7 @@
         }
 
         async function fetchYahooData() {
+            // SP500(^GSPC)은 FRED에서 가져오므로 여기서 제외하여 충돌 방지
             const symbolMap = {
                 "DX-Y.NYB": "DXY", "^IXIC": "NASDAQ", "^DJI": "DOW", 
                 "^KS11": "KOSPI", "^KQ11": "KOSDAQ", "SI=F": "SILVER", 
@@ -179,15 +180,10 @@
             }
         }
 
-        function updateValuations(sp500, prevSp500) {
-            // 미 증시 시총 표기 방식 종래 스타일로 복구
-            const currentUscap = (sp500 / 5000) * BASE_US_MCAP;
-            const prevUscap = (prevSp500 / 5000) * BASE_US_MCAP;
+        function updateValuations(sp500) {
+            const uscap = (sp500 / 5000) * BASE_US_MCAP;
             const el = document.getElementById("US_MCAP");
-            if(el) {
-                el.innerText = currentUscap.toFixed(1);
-                formatChange(currentUscap, prevUscap, "US_MCAP");
-            }
+            if(el) el.innerText = uscap.toFixed(1);
             document.getElementById("BUFFETT").innerText = "192% (고평가)";
             document.getElementById("SHILLER").innerText = "34.5";
         }
