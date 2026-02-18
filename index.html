@@ -98,40 +98,41 @@
             }
         }
 
-        // --- 알파 벤티지 전용 함수 (S&P 500, KOSPI 전용) ---
         async function fetchAlphaVantageData() {
-            const alphaSymbols = [
-                { s: "SPY", id: "SP500" },  // Alpha Vantage 프리티어는 지수(^GSPC) 대신 SPY 사용 권장
-                { s: "EWY", id: "KOSPI" }   // 한국 지수 추종 ETF
+            // S&P 500 (SPX)와 KOSPI 데이터 요청
+            const symbols = [
+                { s: "SPX", id: "SP500" },
+                { s: "KOSPI", id: "KOSPI" }
             ];
 
-            for (const item of alphaSymbols) {
+            for (const item of symbols) {
                 try {
                     const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${item.s}&apikey=${ALPHA_VANTAGE_KEY}`;
                     const res = await fetch(url);
-                    const d = await res.json();
-                    if (d && d["Global Quote"]) {
-                        const q = d["Global Quote"];
-                        const c = parseFloat(q["05. price"]);
-                        const p = parseFloat(q["08. previous close"]);
+                    const data = await res.json();
+                    const quote = data["Global Quote"];
+                    
+                    if (quote && quote["05. price"]) {
+                        const c = parseFloat(quote["05. price"]);
+                        const p = parseFloat(quote["08. previous close"]);
                         const el = document.getElementById(item.id);
-                        if (el && !isNaN(c)) {
+                        if (el) {
                             el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
-                            if(item.id === "KOSPI") { live.k = c; live.kp = p; }
-                            if(item.id === "SP500") { updateValuations(c); }
                         }
+                        if (item.id === "KOSPI") { live.k = c; live.kp = p; }
+                        if (item.id === "SP500") { updateValuations(c); }
+                        updateCalculated();
                     }
                 } catch (e) {}
             }
-            updateCalculated();
         }
 
         async function fetchFredData() {
             const fredSeries = [{s:"DGS30", id:"US30Y"}, {s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"}];
             for (const item of fredSeries) {
                 try {
-                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
+                    const url = `https://api.stlouisforg/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
                     const data = await fetchFredDirect(url);
                     if (data && data.observations && data.observations.length >= 2) {
                         const c = parseFloat(data.observations[0].value);
@@ -150,7 +151,7 @@
         }
 
         async function fetchYahooData() {
-            // S&P 500과 KOSPI는 목록에서 제거됨 (알파 벤티지에서 가져옴)
+            // S&P 500과 KOSPI를 제외한 나머지 지표들만 Yahoo에서 가져옴
             const symbolMap = {
                 "DX-Y.NYB": "DXY", "^IXIC": "NASDAQ", 
                 "^DJI": "DOW", "^KQ11": "KOSDAQ",
@@ -229,7 +230,6 @@
                 } catch(e){}
             }));
 
-            // 알파 벤티지, FRED, 야후 데이터 로드
             fetchAlphaVantageData();
             fetchFredData();
             fetchYahooData();
