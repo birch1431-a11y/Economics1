@@ -26,8 +26,8 @@
     <div class="item-row"><span class="label">원/엔</span><div class="val-container"><span class="value" id="JPY/KRW">--</span><div class="change" id="JPY/KRW-c">--</div></div></div>
 
     <div class="category">주요 증시지표</div><hr class="hr-short">
-    <div class="item-row"><span class="label">S&P 500</span><div class="val-container"><span class="value" id="SP500">--</span><div class="change" id="SP500-c">--</div></div></div>
-    <div class="item-row"><span class="label">KOSPI</span><div class="val-container"><span class="value" id="KOSPI">--</span><div class="change" id="KOSPI-c">--</div></div></div>
+    <div class="item-row"><span class="label">S&P 500(SPY)</span><div class="val-container"><span class="value" id="SP500">--</span><div class="change" id="SP500-c">--</div></div></div>
+    <div class="item-row"><span class="label">KOSPI(KODEX200)</span><div class="val-container"><span class="value" id="KOSPI">--</span><div class="change" id="KOSPI-c">--</div></div></div>
 
     <div class="category">미국 국채 금리</div><hr class="hr-short">
     <div class="item-row"><span class="label">10Y Yield</span><div class="val-container"><span class="value" id="US10Y">--</span><div class="change" id="US10Y-c">--</div></div></div>
@@ -85,10 +85,10 @@
         }
 
         async function init() {
-            // Twelve Data 심볼 최적화: S&P 500(SPX), KOSPI(KOSPI)
+            // Twelve Data 심볼 교체: S&P 500(SPY ETF), KOSPI(069500 KODEX 200 ETF)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
-                {s:"SPX", id:"SP500"}, {s:"KOSPI", id:"KOSPI"},
+                {s:"SPY", id:"SP500"}, {s:"069500", id:"KOSPI"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
                 {s:"XAU/USD", id:"GOLD"}
             ];
