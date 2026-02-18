@@ -67,11 +67,11 @@
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
         const FRED_API_KEY = "cbc0c68b6d198568f349a58e0e2f25b9";
+        const FMP_API_KEY = "3b00676461a208f8875567084564c7f1"; // FMP API 무료 키
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        // 기존 fetchData (Twelve Data/Yahoo용)
         async function fetchData(url) {
             try {
                 const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
@@ -80,10 +80,8 @@
             } catch (e) { return null; }
         }
 
-        // --- FRED 전용 독립 fetchData (보안 강화 통로) ---
         async function fetchFredDirect(url) {
             try {
-                // Allorigins 대신 FRED와 궁합이 좋은 별도의 우회 서버 사용
                 const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
                 if (res.ok) return await res.json();
                 return null;
@@ -122,6 +120,7 @@
             updateCalculated();
         }
 
+        // Yahoo 대신 FMP API를 사용하여 지표 호출
         async function fetchYahooData() {
             const symbolMap = {
                 "DX-Y.NYB": "DXY", "^GSPC": "SP500", "^IXIC": "NASDAQ", 
@@ -129,26 +128,34 @@
                 "SI=F": "SILVER", "HG=F": "COPPER", "PL=F": "PLATINUM", 
                 "CL=F": "WTI", "^VIX": "VIX"
             };
-            const symbols = Object.keys(symbolMap).join(',');
+            // FMP 심볼 매핑 (지수 참값)
+            const fmpSymbols = {
+                "DXY": "DX-Y.NYB", "SP500": "^GSPC", "NASDAQ": "^IXIC", 
+                "DOW": "^DJI", "KOSPI": "^KS11", "KOSDAQ": "^KQ11", 
+                "SILVER": "SI=F", "COPPER": "HG=F", "PLATINUM": "PL=F", 
+                "WTI": "CL=F", "VIX": "^VIX"
+            };
+
             try {
-                const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
-                const data = await fetchData(url);
-                if (data && data.quoteResponse && data.quoteResponse.result) {
-                    data.quoteResponse.result.forEach(quote => {
-                        const targetId = symbolMap[quote.symbol];
-                        if (targetId) {
-                            const c = quote.regularMarketPrice, p = quote.regularMarketPreviousClose;
-                            const el = document.getElementById(targetId);
-                            if (el) {
-                                el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                                formatChange(c, p, targetId);
-                            }
-                            if(targetId === "KOSPI") { live.k = c; live.kp = p; }
-                            if(targetId === "SP500") { updateValuations(c); }
+                // FMP는 CORS를 지원하므로 직접 호출 가능
+                for (const [id, sym] of Object.entries(fmpSymbols)) {
+                    const url = `https://financialmodelingprep.com/api/v3/quote/${sym}?apikey=${FMP_API_KEY}`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (data && data[0]) {
+                        const quote = data[0];
+                        const c = quote.price, p = quote.previousClose;
+                        const el = document.getElementById(id);
+                        if (el) {
+                            el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, id);
                         }
-                    });
-                    updateCalculated();
+                        if(id === "KOSPI") { live.k = c; live.kp = p; }
+                        if(id === "SP500") { updateValuations(c); }
+                    }
                 }
+                updateCalculated();
             } catch (e) {}
         }
 
@@ -179,7 +186,6 @@
         }
 
         async function init() {
-            // Twelve Data (8개 - 절대 보존)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
@@ -204,7 +210,6 @@
                 } catch(e){}
             }));
 
-            // FRED와 야후 데이터 병렬 로드 (절대 Twelve Data를 방해하지 않음)
             fetchFredData();
             fetchYahooData();
 
