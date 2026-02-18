@@ -22,7 +22,6 @@
      <div class="header">글로벌 경제 상황판</div>
 
     <div class="category">외환</div><hr class="hr-short">
-    <div class="item-row"><span class="label">달러지수</span><div class="val-container"><span class="value" id="DXY">--</span><div class="change" id="DXY-c">--</div></div></div>
     <div class="item-row"><span class="label">원/달러</span><div class="val-container"><span class="value" id="USD/KRW">--</span><div class="change" id="USD/KRW-c">--</div></div></div>
     <div class="item-row"><span class="label">원/엔</span><div class="val-container"><span class="value" id="JPY/KRW">--</span><div class="change" id="JPY/KRW-c">--</div></div></div>
 
@@ -40,10 +39,6 @@
     <div class="category">가상자산</div><hr class="hr-short">
     <div class="item-row"><span class="label">BTC($)</span><div class="val-container"><span class="value" id="BTC">--</span><div class="change" id="BTC-c">--</div></div></div>
     <div class="item-row"><span class="label">ETH($)</span><div class="val-container"><span class="value" id="ETH">--</span><div class="change" id="ETH-c">--</div></div></div>
-
-    <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
-    <div class="item-row"><span class="label">버핏 지수</span><span class="value" id="BUFFETT">--</span></div>
-    <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
 
     <div class="footer-copy">2026 Developed by <span style="color: #777; font-weight: 500;">S.K. Chun</span></div>
     <div id="status-msg" style="text-align:center; font-size:0.7rem; color:#555; margin-bottom:30px;">데이터 연결 중...</div>
@@ -102,7 +97,7 @@
 
         async function fetchYahooData() {
             const symbolMap = {
-                "DX-Y.NYB": "DXY", "^GSPC": "SP500", "^KS11": "KOSPI"
+                "^GSPC": "SP500", "^KS11": "KOSPI"
             };
             const symbols = Object.keys(symbolMap).join(',');
             try {
@@ -149,9 +144,6 @@
 
             fetchFredData();
             fetchYahooData();
-
-            document.getElementById("BUFFETT").innerText = "192% (고평가)";
-            document.getElementById("SHILLER").innerText = "34.5";
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
         }
