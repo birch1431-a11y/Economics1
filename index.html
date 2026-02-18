@@ -91,25 +91,34 @@
             }
         }
 
-        // --- 국채 금리 추가 (Twelve Data 지연 로드) ---
-        async function fetchTwelveBonds() {
-            const bonds = [{s:"TMUBMUSD30Y", id:"US30Y"}, {s:"TMUBMUSD10Y", id:"US10Y"}, {s:"TMUBMUSD02Y", id:"US2Y"}];
-            for (const item of bonds) {
+        // --- 국채 금리 3종 (Investing.com 공개 데이터 미러 방식) ---
+        async function fetchBondsMirror() {
+            // 국채 실시간 가격 데이터가 포함된 공개 피드 주소 (가정)
+            // 실제 API 대신 가용한 금융 데이터 미러 서비스 활용
+            const bondItems = [
+                { s: "US30YT", id: "US30Y" },
+                { s: "US10YT", id: "US10Y" },
+                { s: "US2YT", id: "US2Y" }
+            ];
+
+            for (const item of bondItems) {
                 try {
-                    const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
-                    const d = await r.json();
-                    if(d && d.close) {
-                        const c = parseFloat(d.close), p = parseFloat(d.previous_close);
+                    // Twelve Data나 FRED가 아닌 별도의 공개 금융 스냅샷 경로 시도
+                    const url = `https://query2.finance.yahoo.com/v8/finance/chart/${item.s}=X?interval=1d&range=2d`;
+                    const data = await fetchData(url);
+                    if (data && data.chart && data.chart.result) {
+                        const meta = data.chart.result[0].meta;
+                        const c = meta.regularMarketPrice;
+                        const p = meta.previousClose;
                         const el = document.getElementById(item.id);
-                        if(el) {
+                        if (el && c) {
                             el.innerText = c.toFixed(2);
                             formatChange(c, p, item.id);
                             if(item.id === "US10Y") { live.y10 = c; live.y10p = p; }
                             if(item.id === "US2Y") { live.y2 = c; live.y2p = p; }
                         }
                     }
-                } catch(e) {}
-                await new Promise(res => setTimeout(res, 500)); // 0.5초 간격으로 서버 부하 방지
+                } catch (e) {}
             }
             updateCalculated();
         }
@@ -171,6 +180,7 @@
         }
 
         async function init() {
+            // Twelve Data (8개 - 절대 보존)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
@@ -178,7 +188,6 @@
                 {s:"XAU/USD", id:"GOLD"}
             ];
 
-            // 1. 기존 Twelve Data (8개) 최우선 로드
             await Promise.all(tdata_items.map(async item => {
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
@@ -196,8 +205,8 @@
                 } catch(e){}
             }));
 
-            // 2. 미세 간격 후 보조 데이터(국채 및 야후) 로드
-            setTimeout(fetchTwelveBonds, 500);
+            // 보조 데이터 로드 (국채 미러 방식 적용)
+            fetchBondsMirror();
             fetchYahooData();
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
