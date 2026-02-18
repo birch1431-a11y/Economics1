@@ -89,6 +89,7 @@
         }
 
         function formatChange(c, p, id) {
+            if (!p || isNaN(c) || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
@@ -99,9 +100,8 @@
         }
 
         async function fetchAlphaVantageData() {
-            // S&P 500 (SPX)와 KOSPI 데이터 요청
             const symbols = [
-                { s: "SPX", id: "SP500" },
+                { s: "INX", id: "SP500" }, // Alpha Vantage에서 S&P 500은 주로 INX 사용
                 { s: "KOSPI", id: "KOSPI" }
             ];
 
@@ -124,6 +124,8 @@
                         if (item.id === "SP500") { updateValuations(c); }
                         updateCalculated();
                     }
+                    // 무료 키 속도 제한 방지를 위한 짧은 대기
+                    await new Promise(r => setTimeout(r, 500));
                 } catch (e) {}
             }
         }
@@ -132,17 +134,22 @@
             const fredSeries = [{s:"DGS30", id:"US30Y"}, {s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"}];
             for (const item of fredSeries) {
                 try {
-                    const url = `https://api.stlouisforg/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
+                    // API 도메인 오타 수정 (stlouisfed.org)
+                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
                     const data = await fetchFredDirect(url);
                     if (data && data.observations && data.observations.length >= 2) {
-                        const c = parseFloat(data.observations[0].value);
-                        const p = parseFloat(data.observations[1].value);
-                        const el = document.getElementById(item.id);
-                        if (el && !isNaN(c)) {
-                            el.innerText = c.toFixed(2);
-                            formatChange(c, p, item.id);
-                            if(item.id === "US10Y") { live.y10 = c; live.y10p = p; }
-                            if(item.id === "US2Y") { live.y2 = c; live.y2p = p; }
+                        const val0 = data.observations[0].value;
+                        const val1 = data.observations[1].value;
+                        if (val0 !== "." && val1 !== ".") {
+                            const c = parseFloat(val0);
+                            const p = parseFloat(val1);
+                            const el = document.getElementById(item.id);
+                            if (el) {
+                                el.innerText = c.toFixed(2);
+                                formatChange(c, p, item.id);
+                                if(item.id === "US10Y") { live.y10 = c; live.y10p = p; }
+                                if(item.id === "US2Y") { live.y2 = c; live.y2p = p; }
+                            }
                         }
                     }
                 } catch (e) {}
@@ -151,7 +158,6 @@
         }
 
         async function fetchYahooData() {
-            // S&P 500과 KOSPI를 제외한 나머지 지표들만 Yahoo에서 가져옴
             const symbolMap = {
                 "DX-Y.NYB": "DXY", "^IXIC": "NASDAQ", 
                 "^DJI": "DOW", "^KQ11": "KOSDAQ",
@@ -230,7 +236,7 @@
                 } catch(e){}
             }));
 
-            fetchAlphaVantageData();
+            await fetchAlphaVantageData();
             fetchFredData();
             fetchYahooData();
 
