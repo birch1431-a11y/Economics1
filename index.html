@@ -71,8 +71,19 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
+        // 기존 fetchData (Twelve Data/Yahoo용)
+        async function fetchData(url) {
+            try {
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                return JSON.parse(data.contents);
+            } catch (e) { return null; }
+        }
+
+        // --- FRED 전용 독립 fetchData (보안 강화 통로) ---
         async function fetchFredDirect(url) {
             try {
+                // Allorigins 대신 FRED와 궁합이 좋은 별도의 우회 서버 사용
                 const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
                 if (res.ok) return await res.json();
                 return null;
@@ -111,32 +122,34 @@
             updateCalculated();
         }
 
-        async function fetchStooqData() {
+        async function fetchYahooData() {
             const symbolMap = {
-                "JPYKRW": "JPY/KRW", "EURKRW": "EUR/KRW", "CNYKRW": "CNY/KRW",
-                "^NDQ": "NASDAQ", "^DJI": "DOW", "^KOS": "KOSDAQ",
-                "XAGUS": "SILVER", "HG.F": "COPPER", "PL.F": "PLATINUM", 
-                "CL.F": "WTI", "^VIX": "VIX"
+                "DX-Y.NYB": "DXY", "^GSPC": "SP500", "^IXIC": "NASDAQ", 
+                "^DJI": "DOW", "^KS11": "KOSPI", "^KQ11": "KOSDAQ",
+                "SI=F": "SILVER", "HG=F": "COPPER", "PL=F": "PLATINUM", 
+                "CL=F": "WTI", "^VIX": "VIX"
             };
-            
-            for (const [sSymbol, targetId] of Object.entries(symbolMap)) {
-                try {
-                    const url = `https://stooq.com/q/l/?s=${sSymbol}&f=sd2t2ohlcv&e=json`;
-                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-                    const res = await fetch(proxyUrl);
-                    const data = await res.json();
-                    
-                    if (data && data.quotes && data.quotes[0]) {
-                        const q = data.quotes[0];
-                        const c = parseFloat(q.c), p = parseFloat(q.o);
-                        const el = document.getElementById(targetId);
-                        if (el && !isNaN(c)) {
-                            el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, targetId);
+            const symbols = Object.keys(symbolMap).join(',');
+            try {
+                const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
+                const data = await fetchData(url);
+                if (data && data.quoteResponse && data.quoteResponse.result) {
+                    data.quoteResponse.result.forEach(quote => {
+                        const targetId = symbolMap[quote.symbol];
+                        if (targetId) {
+                            const c = quote.regularMarketPrice, p = quote.regularMarketPreviousClose;
+                            const el = document.getElementById(targetId);
+                            if (el) {
+                                el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                                formatChange(c, p, targetId);
+                            }
+                            if(targetId === "KOSPI") { live.k = c; live.kp = p; }
+                            if(targetId === "SP500") { updateValuations(c); }
                         }
-                    }
-                } catch (e) {}
-            }
+                    });
+                    updateCalculated();
+                }
+            } catch (e) {}
         }
 
         function updateCalculated() {
@@ -166,19 +179,15 @@
         }
 
         async function init() {
-            // Twelve Data (총 11개 지표 최적화)
+            // Twelve Data (8개 - 절대 보존)
             const tdata_items = [
-                {s:"USD/KRW", id:"USD/KRW"}, {s:"XAU/USD", id:"GOLD"},
+                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
+                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"},
-                {s:"DXY", id:"DXY"}, {s:"SPX", id:"SP500"}, {s:"KOSPI", id:"KOSPI"}
-            ];
-            
-            // 시차를 두고 호출할 나머지 3개 (Twelve Data 할당량 보호)
-            const tdata_delayed = [
-                {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"}
+                {s:"XAU/USD", id:"GOLD"}
             ];
 
-            const fetchItem = async (item) => {
+            await Promise.all(tdata_items.map(async item => {
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
                     const d = await r.json();
@@ -189,24 +198,15 @@
                             if(item.id === "XRP") el.innerText = c.toFixed(4);
                             else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
-                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; }
-                            if(item.id === "KOSPI"){ live.k=c; live.kp=p; }
-                            if(item.id === "SP500") updateValuations(c);
+                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateCalculated(); }
                         }
                     }
                 } catch(e){}
-            };
+            }));
 
-            // 1단계: 주요 8개 즉시 호출
-            await Promise.all(tdata_items.map(fetchItem));
-            updateCalculated();
+            // FRED와 야후 데이터 병렬 로드 (절대 Twelve Data를 방해하지 않음)
             fetchFredData();
-            fetchStooqData();
-
-            // 2단계: 15초 후 나머지 3개 호출 (Twelve Data 분당 한도 우회)
-            setTimeout(() => {
-                tdata_delayed.map(fetchItem);
-            }, 15000);
+            fetchYahooData();
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
         }
