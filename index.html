@@ -69,32 +69,16 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const FRED_API_KEY = "cbc0c68b6d198568f349a58e0e2f25b9";
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        // 기존 fetchData 유지 (Allorigins 프록시 사용)
         async function fetchData(url) {
             try {
                 const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
                 const data = await res.json();
                 return JSON.parse(data.contents);
             } catch (e) { return null; }
-        }
-
-        // --- FRED 전용 직통 fetchData (성능 향상용) ---
-        async function fetchFredDirect(url) {
-            try {
-                // Allorigins보다 가볍고 FRED와 호환성이 좋은 프록시 경로 사용
-                const res = await fetch(`https://cors-anywhere.herokuapp.com/${url}`, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                });
-                if (!res.ok) { // 만약 Heroku 프록시가 제한에 걸렸을 경우 기존 방식으로 자동 전환
-                    return await fetchData(url);
-                }
-                return await res.json();
-            } catch (e) { return await fetchData(url); }
         }
 
         function formatChange(c, p, id) {
@@ -107,30 +91,25 @@
             }
         }
 
-        async function fetchFredData() {
-            const fredSeries = [
-                { s: "DGS30", id: "US30Y" },
-                { s: "DGS10", id: "US10Y" },
-                { s: "DGS2", id: "US2Y" }
-            ];
-
-            for (const item of fredSeries) {
+        // --- 국채 금리 추가 (Twelve Data 지연 로드) ---
+        async function fetchTwelveBonds() {
+            const bonds = [{s:"TMUBMUSD30Y", id:"US30Y"}, {s:"TMUBMUSD10Y", id:"US10Y"}, {s:"TMUBMUSD02Y", id:"US2Y"}];
+            for (const item of bonds) {
                 try {
-                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
-                    // FRED 전용 직통 호출 시도
-                    const data = await fetchFredDirect(url);
-                    if (data && data.observations && data.observations.length >= 2) {
-                        const c = parseFloat(data.observations[0].value);
-                        const p = parseFloat(data.observations[1].value);
+                    const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
+                    const d = await r.json();
+                    if(d && d.close) {
+                        const c = parseFloat(d.close), p = parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
-                        if (el && !isNaN(c)) {
+                        if(el) {
                             el.innerText = c.toFixed(2);
                             formatChange(c, p, item.id);
                             if(item.id === "US10Y") { live.y10 = c; live.y10p = p; }
                             if(item.id === "US2Y") { live.y2 = c; live.y2p = p; }
                         }
                     }
-                } catch (e) { console.error(item.id + " FRED 로드 실패"); }
+                } catch(e) {}
+                await new Promise(res => setTimeout(res, 500)); // 0.5초 간격으로 서버 부하 방지
             }
             updateCalculated();
         }
@@ -143,11 +122,9 @@
                 "CL=F": "WTI", "^VIX": "VIX"
             };
             const symbols = Object.keys(symbolMap).join(',');
-            
             try {
                 const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
                 const data = await fetchData(url);
-                
                 if (data && data.quoteResponse && data.quoteResponse.result) {
                     data.quoteResponse.result.forEach(quote => {
                         const targetId = symbolMap[quote.symbol];
@@ -164,7 +141,7 @@
                     });
                     updateCalculated();
                 }
-            } catch (e) { console.error("Yahoo Batch 로드 실패"); }
+            } catch (e) {}
         }
 
         function updateCalculated() {
@@ -194,7 +171,6 @@
         }
 
         async function init() {
-            // Twelve Data (절대 보존)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
@@ -202,6 +178,7 @@
                 {s:"XAU/USD", id:"GOLD"}
             ];
 
+            // 1. 기존 Twelve Data (8개) 최우선 로드
             await Promise.all(tdata_items.map(async item => {
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
@@ -216,11 +193,11 @@
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateCalculated(); }
                         }
                     }
-                } catch(e){ console.error(item.id + " 로드 실패"); }
+                } catch(e){}
             }));
 
-            // FRED 및 야후 데이터 호출
-            fetchFredData();
+            // 2. 미세 간격 후 보조 데이터(국채 및 야후) 로드
+            setTimeout(fetchTwelveBonds, 500);
             fetchYahooData();
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
