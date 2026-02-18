@@ -88,7 +88,6 @@
         }
 
         function formatChange(c, p, id) {
-            if(!c || !p || isNaN(c) || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
@@ -99,33 +98,27 @@
         }
 
         async function fetchFredData() {
-            // S&P 500(SP500)을 FRED 시리즈에 추가
+            // SP500 (ID: SP500) 추가
             const fredSeries = [
-                {s:"DGS30", id:"US30Y"}, {s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"},
+                {s:"DGS30", id:"US30Y"}, 
+                {s:"DGS10", id:"US10Y"}, 
+                {s:"DGS2", id:"US2Y"},
                 {s:"SP500", id:"SP500"}
             ];
             for (const item of fredSeries) {
                 try {
-                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=5`;
+                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
                     const data = await fetchFredDirect(url);
-                    if (data && data.observations) {
-                        const validObs = data.observations.filter(o => o.value !== ".");
-                        if (validObs.length >= 2) {
-                            const c = parseFloat(validObs[0].value);
-                            const p = parseFloat(validObs[1].value);
-                            const el = document.getElementById(item.id);
-                            if (el) {
-                                // S&P 500은 종래 방식(정수+콤마) 유지
-                                if(item.id === "SP500") {
-                                    el.innerText = Math.round(c).toLocaleString();
-                                    updateValuations(c); 
-                                } else {
-                                    el.innerText = c.toFixed(2);
-                                }
-                                formatChange(c, p, item.id);
-                                if(item.id === "US10Y") { live.y10 = c; live.y10p = p; }
-                                if(item.id === "US2Y") { live.y2 = c; live.y2p = p; }
-                            }
+                    if (data && data.observations && data.observations.length >= 2) {
+                        const c = parseFloat(data.observations[0].value);
+                        const p = parseFloat(data.observations[1].value);
+                        const el = document.getElementById(item.id);
+                        if (el && !isNaN(c)) {
+                            el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                            formatChange(c, p, item.id);
+                            if(item.id === "US10Y") { live.y10 = c; live.y10p = p; }
+                            if(item.id === "US2Y") { live.y2 = c; live.y2p = p; }
+                            if(item.id === "SP500") { updateValuations(c); }
                         }
                     }
                 } catch (e) {}
@@ -134,11 +127,12 @@
         }
 
         async function fetchYahooData() {
-            // SP500(^GSPC)은 FRED에서 가져오므로 여기서 제외하여 충돌 방지
+            // symbolMap에서 ^GSPC 제거
             const symbolMap = {
-                "DX-Y.NYB": "DXY", "^IXIC": "NASDAQ", "^DJI": "DOW", 
-                "^KS11": "KOSPI", "^KQ11": "KOSDAQ", "SI=F": "SILVER", 
-                "HG=F": "COPPER", "PL=F": "PLATINUM", "CL=F": "WTI", "^VIX": "VIX"
+                "DX-Y.NYB": "DXY", "^IXIC": "NASDAQ", 
+                "^DJI": "DOW", "^KS11": "KOSPI", "^KQ11": "KOSDAQ",
+                "SI=F": "SILVER", "HG=F": "COPPER", "PL=F": "PLATINUM", 
+                "CL=F": "WTI", "^VIX": "VIX"
             };
             const symbols = Object.keys(symbolMap).join(',');
             try {
@@ -176,7 +170,7 @@
             if(live.k) {
                 const kcap = (live.k / 2500) * BASE_KR_MCAP;
                 const el = document.getElementById("KR_MCAP");
-                if(el) el.innerText = Math.round(kcap).toLocaleString();
+                if(el) el.innerText = kcap.toLocaleString(undefined, {maximumFractionDigits:0});
             }
         }
 
