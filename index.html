@@ -124,7 +124,7 @@
                 "DX-Y.NYB": "DXY", "^GSPC": "SP500", "^IXIC": "NASDAQ", 
                 "^DJI": "DOW", "^KS11": "KOSPI", "^KQ11": "KOSDAQ",
                 "SI=F": "SILVER", "HG=F": "COPPER", "PL=F": "PLATINUM", 
-                "CL=F": "WTI", "^VIX": "VIX"
+                "CL=F": "WTI", "BTC-USD": "BTC", "ETH-USD": "ETH", "XRP-USD": "XRP", "^VIX": "VIX"
             };
             const symbols = Object.keys(symbolMap).join(',');
             try {
@@ -136,12 +136,15 @@
                         if (targetId) {
                             const c = quote.regularMarketPrice, p = quote.regularMarketPreviousClose;
                             const el = document.getElementById(targetId);
-                            if (el && el.innerText === "--") { // Twelve Data에서 실패한 경우만 야후 데이터 사용
-                                el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                            // Twelve Data에서 값이 안들어온 경우에만 Yahoo 데이터로 채움 (참값 우선)
+                            if (el && (el.innerText === "--" || el.innerText === "13.99")) {
+                                if (targetId === "XRP") el.innerText = c.toFixed(4);
+                                else el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
                                 formatChange(c, p, targetId);
+                                
+                                if(targetId === "KOSPI") { live.k = c; live.kp = p; }
+                                if(targetId === "SP500") { updateValuations(c); }
                             }
-                            if(targetId === "KOSPI" && live.k === 0) { live.k = c; live.kp = p; }
-                            if(targetId === "SP500") { updateValuations(c); }
                         }
                     });
                     updateCalculated();
@@ -176,13 +179,11 @@
         }
 
         async function init() {
-            // Twelve Data (인덱스 심볼 미세 조정)
+            // Twelve Data: 요청하신 8가지 지표만 정확히 호출
             const tdata_items = [
-                {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
-                {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
-                {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"},
-                {s:"XAU/USD", id:"GOLD"},
-                {s:"DX", id:"DXY"}, {s:"SPX", id:"SP500"}, {s:"KS11", id:"KOSPI"}, {s:"VIX", id:"VIX"}
+                {s:"DXY", id:"DXY"}, {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
+                {s:"SPX", id:"SP500"}, {s:"KS11", id:"KOSPI"}, {s:"XAU/USD", id:"GOLD"},
+                {s:"BTC/USD", id:"BTC"}, {s:"VIX", id:"VIX"}
             ];
 
             await Promise.all(tdata_items.map(async item => {
@@ -193,8 +194,10 @@
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
                         if(el) {
-                            if(item.id === "XRP") el.innerText = c.toFixed(4);
-                            else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                            // 달러지수 오작동(13.99 등) 방지 로직
+                            if(item.id === "DXY" && c < 50) return; 
+
+                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
                             
                             if(item.id === "USD/KRW"){ live.u=c; live.up=p; }
@@ -207,7 +210,7 @@
 
             updateCalculated();
             fetchFredData();
-            fetchYahooData();
+            fetchYahooData(); // 나머지 지표(ETH, XRP, NASDAQ 등) 처리
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
         }
