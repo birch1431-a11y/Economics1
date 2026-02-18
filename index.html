@@ -15,9 +15,6 @@
         .value { font-size: 1rem; font-weight: 600; font-family: 'Roboto Mono', monospace; color: #ffffff; display: block; }
         .change { font-size: 0.75rem; font-weight: 400; margin-top: 2px; }
         .up { color: #ff4444; } .down { color: #4488ff; }
-        .status-danger { color: #ff4444 !important; } 
-        .status-warning { color: #ffbb33 !important; } 
-        .status-safe { color: #00ff88 !important; }
         .footer-copy { text-align: center; font-size: 0.7rem; color: #555; margin: 40px 0 10px 0; border-top: 1px solid #222; padding-top: 20px; letter-spacing: 0.5px; }
     </style>
 </head>
@@ -69,15 +66,27 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
+        const FRED_API_KEY = "cbc0c68b6d198568f349a58e0e2f25b9";
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
+        // 기존 fetchData (Twelve Data/Yahoo용)
         async function fetchData(url) {
             try {
                 const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
                 const data = await res.json();
                 return JSON.parse(data.contents);
+            } catch (e) { return null; }
+        }
+
+        // --- FRED 전용 독립 fetchData (보안 강화 통로) ---
+        async function fetchFredDirect(url) {
+            try {
+                // Allorigins 대신 FRED와 궁합이 좋은 별도의 우회 서버 사용
+                const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
+                if (res.ok) return await res.json();
+                return null;
             } catch (e) { return null; }
         }
 
@@ -91,27 +100,17 @@
             }
         }
 
-        // --- 국채 금리 3종 (Investing.com 공개 데이터 미러 방식) ---
-        async function fetchBondsMirror() {
-            // 국채 실시간 가격 데이터가 포함된 공개 피드 주소 (가정)
-            // 실제 API 대신 가용한 금융 데이터 미러 서비스 활용
-            const bondItems = [
-                { s: "US30YT", id: "US30Y" },
-                { s: "US10YT", id: "US10Y" },
-                { s: "US2YT", id: "US2Y" }
-            ];
-
-            for (const item of bondItems) {
+        async function fetchFredData() {
+            const fredSeries = [{s:"DGS30", id:"US30Y"}, {s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"}];
+            for (const item of fredSeries) {
                 try {
-                    // Twelve Data나 FRED가 아닌 별도의 공개 금융 스냅샷 경로 시도
-                    const url = `https://query2.finance.yahoo.com/v8/finance/chart/${item.s}=X?interval=1d&range=2d`;
-                    const data = await fetchData(url);
-                    if (data && data.chart && data.chart.result) {
-                        const meta = data.chart.result[0].meta;
-                        const c = meta.regularMarketPrice;
-                        const p = meta.previousClose;
+                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
+                    const data = await fetchFredDirect(url);
+                    if (data && data.observations && data.observations.length >= 2) {
+                        const c = parseFloat(data.observations[0].value);
+                        const p = parseFloat(data.observations[1].value);
                         const el = document.getElementById(item.id);
-                        if (el && c) {
+                        if (el && !isNaN(c)) {
                             el.innerText = c.toFixed(2);
                             formatChange(c, p, item.id);
                             if(item.id === "US10Y") { live.y10 = c; live.y10p = p; }
@@ -205,8 +204,8 @@
                 } catch(e){}
             }));
 
-            // 보조 데이터 로드 (국채 미러 방식 적용)
-            fetchBondsMirror();
+            // FRED와 야후 데이터 병렬 로드 (절대 Twelve Data를 방해하지 않음)
+            fetchFredData();
             fetchYahooData();
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
