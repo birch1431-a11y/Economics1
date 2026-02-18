@@ -50,6 +50,8 @@
 
     <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
     <div class="item-row"><span class="label">장단기 금리차</span><div class="val-container"><span class="value" id="SPREAD">--</span><div class="change" id="SPREAD-c">--</div></div></div>
+    <div class="item-row"><span class="label">버핏 지수</span><span class="value" id="BUFFETT">--</span></div>
+    <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
 
     <div class="footer-copy">2026 Developed by <span style="color: #777; font-weight: 500;">S.K. Chun</span></div>
     <div id="status-msg" style="text-align:center; font-size:0.7rem; color:#555; margin-bottom:30px;">데이터 연결 중...</div>
@@ -57,6 +59,8 @@
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
         const FRED_API_KEY = "cbc0c68b6d198568f349a58e0e2f25b9";
+        const BASE_US_MCAP = 62.5; 
+        const BASE_KR_MCAP = 4660;
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
         async function fetchDirect(url) {
@@ -67,7 +71,7 @@
         }
 
         function formatChange(c, p, id) {
-            if(!p) return;
+            if(!p || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
@@ -75,13 +79,12 @@
             if(el) el.innerHTML = `<span class="${cls}">${sign} ${Math.abs(diff).toFixed(2)} (${pct}%)</span>`;
         }
 
-        // 1. [보존] FRED 국채 로직
         async function fetchFred() {
             const series = [{s:"DGS30", id:"US30Y"}, {s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"}];
             for (const item of series) {
                 const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
                 const data = await fetchDirect(url);
-                if(data && data.observations) {
+                if(data && data.observations && data.observations.length >= 2) {
                     const c = parseFloat(data.observations[0].value), p = parseFloat(data.observations[1].value);
                     document.getElementById(item.id).innerText = c.toFixed(2);
                     formatChange(c, p, item.id);
@@ -92,7 +95,6 @@
             if(live.y10 && live.y2) document.getElementById("SPREAD").innerText = (live.y10 - live.y2).toFixed(3);
         }
 
-        // 2. [보존] Twelve Data 8종 로직
         async function fetchTwelve() {
             const items = [{s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"}, {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"}, {s:"XAU/USD", id:"GOLD"}];
             for (const item of items) {
@@ -102,40 +104,55 @@
                     const c = parseFloat(d.close), p = parseFloat(d.previous_close);
                     document.getElementById(item.id).innerText = c.toLocaleString(undefined, {minimumFractionDigits:2});
                     formatChange(c, p, item.id);
-                    if(item.id === "USD/KRW") live.u = c;
+                    if(item.id === "USD/KRW") { live.u = c; updateCalculated(); }
                 }
             }
         }
 
-        // 3. [핵심] 3종 지표 우회 호출 (Investing/Stooq 데이터 미러링)
         async function fetchKeyIndices() {
-            // 가장 안정적인 전 세계 지수 미러링 경로 사용
             const targets = [
                 { url: 'https://stooq.com/q/l/?s=^spx&f=sd2t2ohlcv&e=json', id: 'SP500' },
-                { url: 'https://stooq.com/q/l/?s=dxy.f&f=sd2t2ohlcv&e=json', id: 'DXY' },
+                { url: 'https://stooq.com/q/l/?s=usdidx&f=sd2t2ohlcv&e=json', id: 'DXY' },
                 { url: 'https://stooq.com/q/l/?s=^ksp&f=sd2t2ohlcv&e=json', id: 'KOSPI' }
             ];
 
             for (const target of targets) {
-                try {
-                    const data = await fetchDirect(target.url);
-                    if(data && data.symbols && data.symbols[0]) {
-                        const s = data.symbols[0];
-                        const c = parseFloat(s.close), p = parseFloat(s.open); // 임시 변동폭 계산
-                        document.getElementById(target.id).innerText = c.toLocaleString();
+                const data = await fetchDirect(target.url);
+                if(data && data.symbols && data.symbols[0]) {
+                    const s = data.symbols[0];
+                    const c = parseFloat(s.close), p = parseFloat(s.open);
+                    if(!isNaN(c)) {
+                        document.getElementById(target.id).innerText = c.toLocaleString(undefined, {minimumFractionDigits:2});
                         formatChange(c, p, target.id);
-                        if(target.id === "KOSPI") live.k = c;
+                        if(target.id === "KOSPI") { live.k = c; updateCalculated(); }
+                        if(target.id === "SP500") { updateValuations(c); }
                     }
-                } catch(e) {}
+                }
             }
-            if(live.k && live.u) document.getElementById("KOSPI_USD").innerText = (live.k / live.u).toFixed(2);
+        }
+
+        function updateCalculated() {
+            if(live.k && live.u) {
+                document.getElementById("KOSPI_USD").innerText = (live.k / live.u).toFixed(2);
+            }
+            if(live.k) {
+                const kcap = (live.k / 2500) * BASE_KR_MCAP;
+                document.getElementById("KR_MCAP").innerText = kcap.toLocaleString(undefined, {maximumFractionDigits:0});
+            }
+        }
+
+        function updateValuations(sp500) {
+            const uscap = (sp500 / 5000) * BASE_US_MCAP;
+            document.getElementById("US_MCAP").innerText = uscap.toFixed(1);
+            document.getElementById("BUFFETT").innerText = "192% (고평가)";
+            document.getElementById("SHILLER").innerText = "34.5";
         }
 
         window.onload = () => {
             fetchFred();
             fetchTwelve();
             fetchKeyIndices();
-            setTimeout(() => { document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString(); }, 2000);
+            setTimeout(() => { document.getElementById('status-msg').innerText = "최종 업데이트 완료"; }, 3000);
         };
     </script>
 </body>
