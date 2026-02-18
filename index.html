@@ -85,7 +85,7 @@
         }
 
         async function init() {
-            // Twelve Data 통합 항목 (분당 호출 제한을 고려하여 구성)
+            // Twelve Data 심볼 최적화: S&P 500(SPX), KOSPI(KOSPI)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPX", id:"SP500"}, {s:"KOSPI", id:"KOSPI"},
@@ -93,20 +93,20 @@
                 {s:"XAU/USD", id:"GOLD"}
             ];
 
-            await Promise.all(tdata_items.map(async item => {
+            for (const item of tdata_items) {
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
                     const d = await r.json();
                     if(d && d.close){
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
-                        if(el) {
+                        if(el && !isNaN(c)) {
                             el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
                         }
                     }
                 } catch(e){}
-            }));
+            }
 
             fetchFredData();
 
