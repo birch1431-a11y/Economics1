@@ -56,7 +56,7 @@
     <div class="item-row"><span class="label">XRP($)</span><div class="val-container"><span class="value" id="XRP">--</span><div class="change" id="XRP-c">--</div></div></div>
 
     <div class="category">시장 심리 및 밸류에이션</div><hr class="hr-short">
-    <div class="item-row"><span class="label">VIXY</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
+    <div class="item-row"><span class="label">VIX</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
     <div class="item-row"><span class="label">장단기 금리차</span><div class="val-container"><span class="value" id="SPREAD">--</span><div class="change" id="SPREAD-c">--</div></div></div>
     <div class="item-row"><span class="label">버핏 지수</span><span class="value" id="BUFFETT">--</span></div>
     <div class="item-row"><span class="label">쉴러 PER</span><span class="value" id="SHILLER">--</span></div>
@@ -71,7 +71,6 @@
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
 
-        // 기존 fetchData (Twelve Data/Yahoo용)
         async function fetchData(url) {
             try {
                 const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
@@ -80,10 +79,8 @@
             } catch (e) { return null; }
         }
 
-        // --- FRED 전용 독립 fetchData (보안 강화 통로) ---
         async function fetchFredDirect(url) {
             try {
-                // Allorigins 대신 FRED와 궁합이 좋은 별도의 우회 서버 사용
                 const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
                 if (res.ok) return await res.json();
                 return null;
@@ -179,12 +176,13 @@
         }
 
         async function init() {
-            // Twelve Data (8개 - 절대 보존)
+            // Twelve Data (요청에 따라 지표 대폭 보완)
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"EUR/KRW", id:"EUR/KRW"}, {s:"CNY/KRW", id:"CNY/KRW"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"}, {s:"XRP/USD", id:"XRP"},
-                {s:"XAU/USD", id:"GOLD"}
+                {s:"XAU/USD", id:"GOLD"},
+                {s:"DXY", id:"DXY"}, {s:"GSPC", id:"SP500"}, {s:"KS11", id:"KOSPI"}, {s:"VIX", id:"VIX"}
             ];
 
             await Promise.all(tdata_items.map(async item => {
@@ -198,13 +196,17 @@
                             if(item.id === "XRP") el.innerText = c.toFixed(4);
                             else el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
-                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; updateCalculated(); }
+                            
+                            // 내부 계산을 위한 값 저장
+                            if(item.id === "USD/KRW"){ live.u=c; live.up=p; }
+                            if(item.id === "KOSPI"){ live.k=c; live.kp=p; }
+                            if(item.id === "SP500"){ updateValuations(c); }
+                            updateCalculated();
                         }
                     }
                 } catch(e){}
             }));
 
-            // FRED와 야후 데이터 병렬 로드 (절대 Twelve Data를 방해하지 않음)
             fetchFredData();
             fetchYahooData();
 
