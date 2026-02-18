@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🔄 글로벌 경제 상황판</title>
+    <title> 글로벌 경제 상황판</title>
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, sans-serif; padding: 15px; margin: 0; }
         .header { text-align: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 25px; color: #c5a059; cursor: pointer; padding: 10px; border: 1px solid #444; border-radius: 8px; }
@@ -19,7 +19,7 @@
     </style>
 </head>
 <body>
-    <div class="header" onclick="location.reload()">🔄 글로벌 경제 상황판</div>
+     <div class="header">글로벌 경제 상황판</div>
 
     <div class="category">외환</div><hr class="hr-short">
     <div class="item-row"><span class="label">달러지수</span><div class="val-container"><span class="value" id="DXY">--</span><div class="change" id="DXY-c">--</div></div></div>
@@ -67,7 +67,6 @@
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
         const FRED_API_KEY = "cbc0c68b6d198568f349a58e0e2f25b9";
-        const ALPHA_VANTAGE_KEY = "NG255JZSTJEJFW4I";
         const BASE_US_MCAP = 62.5; 
         const BASE_KR_MCAP = 4660; 
         let live = { k:0, kp:0, u:0, up:0, y10:0, y10p:0, y2:0, y2p:0 };
@@ -89,7 +88,6 @@
         }
 
         function formatChange(c, p, id) {
-            if (!p || isNaN(c) || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
@@ -99,57 +97,21 @@
             }
         }
 
-        async function fetchAlphaVantageData() {
-            const symbols = [
-                { s: "INX", id: "SP500" }, // Alpha Vantage에서 S&P 500은 주로 INX 사용
-                { s: "KOSPI", id: "KOSPI" }
-            ];
-
-            for (const item of symbols) {
-                try {
-                    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${item.s}&apikey=${ALPHA_VANTAGE_KEY}`;
-                    const res = await fetch(url);
-                    const data = await res.json();
-                    const quote = data["Global Quote"];
-                    
-                    if (quote && quote["05. price"]) {
-                        const c = parseFloat(quote["05. price"]);
-                        const p = parseFloat(quote["08. previous close"]);
-                        const el = document.getElementById(item.id);
-                        if (el) {
-                            el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-                            formatChange(c, p, item.id);
-                        }
-                        if (item.id === "KOSPI") { live.k = c; live.kp = p; }
-                        if (item.id === "SP500") { updateValuations(c); }
-                        updateCalculated();
-                    }
-                    // 무료 키 속도 제한 방지를 위한 짧은 대기
-                    await new Promise(r => setTimeout(r, 500));
-                } catch (e) {}
-            }
-        }
-
         async function fetchFredData() {
             const fredSeries = [{s:"DGS30", id:"US30Y"}, {s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"}];
             for (const item of fredSeries) {
                 try {
-                    // API 도메인 오타 수정 (stlouisfed.org)
                     const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
                     const data = await fetchFredDirect(url);
                     if (data && data.observations && data.observations.length >= 2) {
-                        const val0 = data.observations[0].value;
-                        const val1 = data.observations[1].value;
-                        if (val0 !== "." && val1 !== ".") {
-                            const c = parseFloat(val0);
-                            const p = parseFloat(val1);
-                            const el = document.getElementById(item.id);
-                            if (el) {
-                                el.innerText = c.toFixed(2);
-                                formatChange(c, p, item.id);
-                                if(item.id === "US10Y") { live.y10 = c; live.y10p = p; }
-                                if(item.id === "US2Y") { live.y2 = c; live.y2p = p; }
-                            }
+                        const c = parseFloat(data.observations[0].value);
+                        const p = parseFloat(data.observations[1].value);
+                        const el = document.getElementById(item.id);
+                        if (el && !isNaN(c)) {
+                            el.innerText = c.toFixed(2);
+                            formatChange(c, p, item.id);
+                            if(item.id === "US10Y") { live.y10 = c; live.y10p = p; }
+                            if(item.id === "US2Y") { live.y2 = c; live.y2p = p; }
                         }
                     }
                 } catch (e) {}
@@ -157,32 +119,39 @@
             updateCalculated();
         }
 
+        // 지수(Index) 참값 수급을 위해 보강된 Yahoo 함수
         async function fetchYahooData() {
             const symbolMap = {
-                "DX-Y.NYB": "DXY", "^IXIC": "NASDAQ", 
-                "^DJI": "DOW", "^KQ11": "KOSDAQ",
+                "DX-Y.NYB": "DXY", "^GSPC": "SP500", "^IXIC": "NASDAQ", 
+                "^DJI": "DOW", "^KS11": "KOSPI", "^KQ11": "KOSDAQ",
                 "SI=F": "SILVER", "HG=F": "COPPER", "PL=F": "PLATINUM", 
                 "CL=F": "WTI", "^VIX": "VIX"
             };
-            const symbols = Object.keys(symbolMap).join(',');
-            try {
-                const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
-                const data = await fetchData(url);
-                if (data && data.quoteResponse && data.quoteResponse.result) {
-                    data.quoteResponse.result.forEach(quote => {
-                        const targetId = symbolMap[quote.symbol];
-                        if (targetId) {
-                            const c = quote.regularMarketPrice, p = quote.regularMarketPreviousClose;
+
+            for (const [symbol, targetId] of Object.entries(symbolMap)) {
+                try {
+                    // v8 chart API: 지수 인덱스 참값 수급용
+                    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`;
+                    const data = await fetchData(url);
+                    
+                    if (data && data.chart && data.chart.result && data.chart.result[0]) {
+                        const meta = data.chart.result[0].meta;
+                        const c = meta.regularMarketPrice;
+                        const p = meta.previousClose;
+
+                        if (c !== undefined && p !== undefined) {
                             const el = document.getElementById(targetId);
                             if (el) {
                                 el.innerText = c.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
                                 formatChange(c, p, targetId);
+                                if(targetId === "KOSPI") { live.k = c; live.kp = p; }
+                                if(targetId === "SP500") { updateValuations(c); }
                             }
                         }
-                    });
-                    updateCalculated();
-                }
-            } catch (e) {}
+                    }
+                } catch (e) {}
+            }
+            updateCalculated();
         }
 
         function updateCalculated() {
@@ -219,6 +188,7 @@
                 {s:"XAU/USD", id:"GOLD"}
             ];
 
+            // Twelve Data (환율, 코인, 금) - 절대 보존
             await Promise.all(tdata_items.map(async item => {
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
@@ -236,11 +206,10 @@
                 } catch(e){}
             }));
 
-            await fetchAlphaVantageData();
             fetchFredData();
             fetchYahooData();
 
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
+            setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1500);
         }
 
         window.onload = init;
