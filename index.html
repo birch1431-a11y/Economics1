@@ -56,6 +56,7 @@
         }
 
         function formatChange(c, p, id) {
+            if(isNaN(c) || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
@@ -69,15 +70,18 @@
             const fredSeries = [{s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"}];
             for (const item of fredSeries) {
                 try {
-                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=2`;
+                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=5`;
                     const data = await fetchFredDirect(url);
-                    if (data && data.observations && data.observations.length >= 2) {
-                        const c = parseFloat(data.observations[0].value);
-                        const p = parseFloat(data.observations[1].value);
-                        const el = document.getElementById(item.id);
-                        if (el && !isNaN(c)) {
-                            el.innerText = c.toFixed(2);
-                            formatChange(c, p, item.id);
+                    if (data && data.observations) {
+                        const obs = data.observations.filter(o => !isNaN(parseFloat(o.value)));
+                        if(obs.length >= 2) {
+                            const c = parseFloat(obs[0].value);
+                            const p = parseFloat(obs[1].value);
+                            const el = document.getElementById(item.id);
+                            if (el) {
+                                el.innerText = c.toFixed(2);
+                                formatChange(c, p, item.id);
+                            }
                         }
                     }
                 } catch (e) {}
@@ -85,10 +89,10 @@
         }
 
         async function init() {
-            // SPY와 069500(KODEX200) ETF 심볼 적용
+            // SPY와 KODEX200(069500:XKRX) 심볼 적용
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
-                {s:"SPY", id:"SP500"}, {s:"069500", id:"KOSPI"},
+                {s:"SPY", id:"SP500"}, {s:"069500:XKRX", id:"KOSPI"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
                 {s:"XAU/USD", id:"GOLD"}
             ];
