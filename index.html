@@ -29,6 +29,9 @@
     <div class="item-row"><span class="label">S&P 500(SPY 추종)</span><div class="val-container"><span class="value" id="SP500">--</span><div class="change" id="SP500-c">--</div></div></div>
     <div class="item-row"><span class="label">KOSPI(EWY 추종)</span><div class="val-container"><span class="value" id="KOSPI">--</span><div class="change" id="KOSPI-c">--</div></div></div>
 
+    <div class="category">시장 밸류에이션 및 변동성</div><hr class="hr-short">
+    <div class="item-row"><span class="label">공포지수(VIX)</span><div class="val-container"><span class="value" id="VIX">--</span><div class="change" id="VIX-c">--</div></div></div>
+
     <div class="category">미국 국채 금리</div><hr class="hr-short">
     <div class="item-row"><span class="label">10Y Yield</span><div class="val-container"><span class="value" id="US10Y">--</span><div class="change" id="US10Y-c">--</div></div></div>
     <div class="item-row"><span class="label">2Y Yield</span><div class="val-container"><span class="value" id="US2Y">--</span><div class="change" id="US2Y-c">--</div></div></div>
@@ -91,7 +94,7 @@
         async function init() {
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
-                {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"},
+                {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VIX", id:"VIX"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
                 {s:"XAU/USD", id:"GOLD"}
             ];
