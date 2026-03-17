@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -74,6 +75,7 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
+        const FRED_API_KEY = "cbc0c68b6d198568f349a58e0e2f25b9";
 
         const noticeText = `경제지표들을 가능한 많이 담고 싶었으나 무료 입수에 근본적인 한계가 있습니다.\n\n우선 데이터 제공 사이트에서는 원 데이터 제공자와의 계약관계상 제약이 있고, 기계적 방식으로 접속하는 경우 외부 공격으로 판단하여 해당 접근 경로를 차단하기도 합니다.\n(단시간내 반복적 새로고침이 문제를 악화시키므로 상황판 상단의 새로고침 기능은 삭제함)\n\n이로 인해 제공되던 데이터들이 막히는 일이 반복되고 있습니다. 따라서 부득이 제공 사이트들을 교체하고 문제가 없는 수준에서 데이터를 가져오도록 수정했습니다.\n\n또한 경제지표 중 S&P500, 코스피, VIX는 원계약자에 묶인 경우가 많아서 이에 대해서는 지수추종 ETF로 교체했습니다. 지수와 ETF는 쌍둥이처럼 움직입니다. 100만 원 움직일 때 몇백 원 정도의 미세한 오차는 있을 수 있지만, 시장이 어떤 상황인지 방향을 확인하는 데는 지장이 없습니다.`;
 
@@ -90,6 +92,23 @@
             localStorage.setItem('notice_closed_2026', 'true');
         }
 
+        async function fetchFredDirect(url) {
+            try {
+                // 더 강력한 프록시 주소로 변경
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+                const res = await fetch(proxyUrl);
+                if (res.ok) {
+                    const json = await res.json();
+                    // allorigins 특유의 감싸진 데이터를 문자열에서 객체로 변환
+                    return typeof json.contents === 'string' ? JSON.parse(json.contents) : json.contents;
+                }
+                return null;
+            } catch (e) { 
+                console.error("FRED Fetch Error:", e);
+                return null; 
+            }
+        }
+
         function formatChange(c, p, id) {
             if(isNaN(c) || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
@@ -101,44 +120,55 @@
             }
         }
 
+        async function fetchFredData() {
+            const fredSeries = [{s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"}];
+            for (const item of fredSeries) {
+                try {
+                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=5`;
+                    const data = await fetchFredDirect(url);
+                    if (data && data.observations) {
+                        const obs = data.observations.filter(o => o.value !== "." && !isNaN(parseFloat(o.value)));
+                        if(obs.length >= 2) {
+                            const c = parseFloat(obs[0].value);
+                            const p = parseFloat(obs[1].value);
+                            const el = document.getElementById(item.id);
+                            if (el) {
+                                el.innerText = c.toFixed(2);
+                                formatChange(c, p, item.id);
+                            }
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+
         async function init() {
             handleNotice();
 
-            // Twelve Data를 통해 모든 지표(국채 금리 포함)를 순차적으로 호출
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
-                {s:"XAU/USD", id:"GOLD"},
-                {s:"TNX", id:"US10Y"}, // 미국 10년물 금리 (CBOE Interest Rate 10 Year T-Note)
-                {s:"IRX", id:"US2Y"}   // 미국 13주 단기 금리 (10년물과 추세 공유)
+                {s:"XAU/USD", id:"GOLD"}
             ];
 
             for (const item of tdata_items) {
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
                     const d = await r.json();
-                    
                     if(d && d.close){
-                        let c = parseFloat(d.close);
-                        let p = parseFloat(d.previous_close);
-
-                        // TNX, IRX 지수는 10배 표기되므로 실제 % 수치로 변환
-                        if(item.s === "TNX" || item.s === "IRX") {
-                            c = c / 10;
-                            p = p / 10;
-                        }
-
+                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
                         if(el && !isNaN(c)) {
-                            el.innerText = c.toFixed(2);
+                            el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
                         }
                     }
-                    // 무료 API 안정성을 위해 0.1초 간격으로 호출
-                    await new Promise(res => setTimeout(res, 100));
                 } catch(e){}
             }
+
+            // 트웰브데이터 로딩 후 국채 금리 실행
+            fetchFredData();
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
         }
