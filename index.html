@@ -95,8 +95,13 @@
 
         async function fetchFredDirect(url) {
             try {
-                const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
-                if (res.ok) return await res.json();
+                // 기존 corsproxy.io를 대신하여 api.allorigins.win 사용
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    // allorigins는 응답 내용을 contents 필드에 문자열로 담아 반환하므로 다시 파싱 필요
+                    return JSON.parse(data.contents);
+                }
                 return null;
             } catch (e) { return null; }
         }
