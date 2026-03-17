@@ -104,14 +104,14 @@
         async function init() {
             handleNotice();
 
-            // Twelve Data로 가져올 모든 지표 통합 (국채 금리 포함)
+            // Twelve Data를 통해 모든 지표(국채 금리 포함)를 순차적으로 호출
             const tdata_items = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
                 {s:"XAU/USD", id:"GOLD"},
-                {s:"TNX", id:"US10Y"}, // 미국 10년물 금리 지수
-                {s:"IRX", id:"US2Y"}   // 미국 13주(단기) 국채 수익률 지수 (2년물 대용)
+                {s:"TNX", id:"US10Y"}, // 미국 10년물 금리 (CBOE Interest Rate 10 Year T-Note)
+                {s:"IRX", id:"US2Y"}   // 미국 13주 단기 금리 (10년물과 추세 공유)
             ];
 
             for (const item of tdata_items) {
@@ -123,7 +123,7 @@
                         let c = parseFloat(d.close);
                         let p = parseFloat(d.previous_close);
 
-                        // 국채 금리 지수(TNX, IRX)는 10배 곱해진 수치이므로 원래 %단위로 조정
+                        // TNX, IRX 지수는 10배 표기되므로 실제 % 수치로 변환
                         if(item.s === "TNX" || item.s === "IRX") {
                             c = c / 10;
                             p = p / 10;
@@ -135,8 +135,8 @@
                             formatChange(c, p, item.id);
                         }
                     }
-                    // 호출 간격 조절 (안정성 확보)
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    // 무료 API 안정성을 위해 0.1초 간격으로 호출
+                    await new Promise(res => setTimeout(res, 100));
                 } catch(e){}
             }
 
