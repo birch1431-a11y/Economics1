@@ -17,7 +17,6 @@
         .up { color: #ff4444; } .down { color: #4488ff; }
         .footer-copy { text-align: center; font-size: 0.7rem; color: #555; margin: 40px 0 10px 0; border-top: 1px solid #222; padding-top: 20px; letter-spacing: 0.5px; }
 
-        /* 공지사항 팝업 스타일 */
         #notice-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;
@@ -74,7 +73,6 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const FRED_API_KEY = "cbc0c68b6d198568f349a58e0e2f25b9";
 
         const noticeText = `경제지표들을 가능한 많이 담고 싶었으나 무료 입수에 근본적인 한계가 있습니다.\n\n우선 데이터 제공 사이트에서는 원 데이터 제공자와의 계약관계상 제약이 있고, 기계적 방식으로 접속하는 경우 외부 공격으로 판단하여 해당 접근 경로를 차단하기도 합니다.\n(단시간내 반복적 새로고침이 문제를 악화시키므로 상황판 상단의 새로고침 기능은 삭제함)\n\n이로 인해 제공되던 데이터들이 막히는 일이 반복되고 있습니다. 따라서 부득이 제공 사이트들을 교체하고 문제가 없는 수준에서 데이터를 가져오도록 수정했습니다.\n\n또한 경제지표 중 S&P500, 코스피, VIX는 원계약자에 묶인 경우가 많아서 이에 대해서는 지수추종 ETF로 교체했습니다. 지수와 ETF는 쌍둥이처럼 움직입니다. 100만 원 움직일 때 몇백 원 정도의 미세한 오차는 있을 수 있지만, 시장이 어떤 상황인지 방향을 확인하는 데는 지장이 없습니다.`;
 
@@ -91,23 +89,6 @@
             localStorage.setItem('notice_closed_2026', 'true');
         }
 
-        async function fetchFredDirect(url) {
-            try {
-                // 더 강력한 프록시 주소로 변경
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-                const res = await fetch(proxyUrl);
-                if (res.ok) {
-                    const json = await res.json();
-                    // allorigins 특유의 감싸진 데이터를 문자열에서 객체로 변환
-                    return typeof json.contents === 'string' ? JSON.parse(json.contents) : json.contents;
-                }
-                return null;
-            } catch (e) { 
-                console.error("FRED Fetch Error:", e);
-                return null; 
-            }
-        }
-
         function formatChange(c, p, id) {
             if(isNaN(c) || isNaN(p)) return;
             const diff = c - p, pct = (diff/p*100).toFixed(2);
@@ -119,39 +100,27 @@
             }
         }
 
-        async function fetchFredData() {
-            const fredSeries = [{s:"DGS10", id:"US10Y"}, {s:"DGS2", id:"US2Y"}];
-            for (const item of fredSeries) {
-                try {
-                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${item.s}&api_key=${FRED_API_KEY}&file_type=json&sort_order=desc&limit=5`;
-                    const data = await fetchFredDirect(url);
-                    if (data && data.observations) {
-                        const obs = data.observations.filter(o => o.value !== "." && !isNaN(parseFloat(o.value)));
-                        if(obs.length >= 2) {
-                            const c = parseFloat(obs[0].value);
-                            const p = parseFloat(obs[1].value);
-                            const el = document.getElementById(item.id);
-                            if (el) {
-                                el.innerText = c.toFixed(2);
-                                formatChange(c, p, item.id);
-                            }
-                        }
-                    }
-                } catch (e) {}
+        // 보관(캐싱)된 금리 데이터를 화면에 표시하는 함수
+        function displayCachedYield(id, data) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerText = data.close.toFixed(2);
+                formatChange(data.close, data.prev, id);
             }
         }
 
         async function init() {
             handleNotice();
 
-            const tdata_items = [
+            // 1. 일반 실시간 지표 (환율, 주식, 코인, 금)
+            const realTimeItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
                 {s:"XAU/USD", id:"GOLD"}
             ];
 
-            for (const item of tdata_items) {
+            for (const item of realTimeItems) {
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
                     const d = await r.json();
@@ -163,11 +132,50 @@
                             formatChange(c, p, item.id);
                         }
                     }
+                    await new Promise(res => setTimeout(res, 100));
                 } catch(e){}
             }
 
-            // 트웰브데이터 로딩 후 국채 금리 실행
-            fetchFredData();
+            // 2. 국채 금리 지표 (3시간 보관 로직 적용)
+            const yieldItems = [
+                {s:"TNX", id:"US10Y"}, {s:"IRX", id:"US2Y"}
+            ];
+            const CACHE_TIME = 3 * 60 * 60 * 1000; // 3시간 (밀리초 단위)
+            const now = Date.now();
+
+            for (const item of yieldItems) {
+                const cacheKey = `yield_cache_${item.id}`;
+                const cachedData = JSON.parse(localStorage.getItem(cacheKey));
+
+                // 캐시가 유효하면(3시간 미만) 서버 호출 없이 보관된 데이터 사용
+                if (cachedData && (now - cachedData.timestamp < CACHE_TIME)) {
+                    displayCachedYield(item.id, cachedData);
+                } else {
+                    try {
+                        const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
+                        const d = await r.json();
+                        if (d && d.close) {
+                            const closeVal = parseFloat(d.close) / 10; // 지수 보정
+                            const prevVal = parseFloat(d.previous_close) / 10;
+                            
+                            if (!isNaN(closeVal)) {
+                                // 성공했을 때만 금고(localStorage)에 저장
+                                const dataToCache = {
+                                    close: closeVal,
+                                    prev: prevVal,
+                                    timestamp: now
+                                };
+                                localStorage.setItem(cacheKey, JSON.stringify(dataToCache));
+                                displayCachedYield(item.id, dataToCache);
+                            }
+                        }
+                    } catch (e) {
+                        // 실패 시 이전에 저장된 값이라도 있으면 보여줌 (안정성)
+                        if (cachedData) displayCachedYield(item.id, cachedData);
+                    }
+                }
+                await new Promise(res => setTimeout(res, 100));
+            }
 
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
         }
