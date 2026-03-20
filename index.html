@@ -73,7 +73,6 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-
         const noticeText = `경제지표들을 가능한 많이 담고 싶었으나 무료 입수에 근본적인 한계가 있습니다.`;
 
         function handleNotice() {
@@ -103,7 +102,7 @@
         async function init() {
             handleNotice();
 
-            // 1. Twelve Data 실시간 지표 (기존 로직 유지)
+            // 1. 실시간 지표 (기존 로직 유지)
             const realTimeItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
@@ -126,9 +125,9 @@
                 } catch(e){}
             }
 
-            // 2. 국채 금리 (더 강력한 통로 + 3시간 보관 로직)
+            // 2. 국채 금리 (3시간 보관 및 차단 방지 로직)
             const yieldItems = [
-                {s:"US10YT", id:"US10Y"}, {s:"US2YT", id:"US2Y"}
+                {s:"^TNX", id:"US10Y"}, {s:"^IRX", id:"US2Y"}
             ];
             const CACHE_TIME = 3 * 60 * 60 * 1000;
             const now = Date.now();
@@ -137,22 +136,18 @@
                 const cacheKey = `yield_cache_${item.id}`;
                 const cached = JSON.parse(localStorage.getItem(cacheKey));
 
-                // 3시간 이내 보관 데이터가 있으면 즉시 사용
                 if (cached && (now - cached.timestamp < CACHE_TIME)) {
                     document.getElementById(item.id).innerText = cached.close.toFixed(2);
                     formatChange(cached.close, cached.prev, item.id);
                 } else {
                     try {
-                        // 가장 안정적인 공공 통로(API) 활용
-                        const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/^TNX?interval=1d&range=5d')}`);
-                        const json = await r.json();
-                        const d = JSON.parse(json.contents);
+                        // 가장 원시적이지만 확실한 우회 경로 사용 (CorsProxy 지양)
+                        const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+item.s+'?interval=1d&range=1d')}`);
+                        const d = await r.json();
+                        const result = JSON.parse(d.contents).chart.result[0].meta;
                         
-                        const targetSymbol = item.s === "US10YT" ? "^TNX" : "^IRX";
-                        // 실제 야후 데이터 구조에서 추출
-                        const meta = d.chart.result[0].meta;
-                        const closeVal = meta.regularMarketPrice;
-                        const prevVal = meta.previousClose;
+                        const closeVal = result.regularMarketPrice;
+                        const prevVal = result.previousClose;
 
                         if (closeVal && !isNaN(closeVal)) {
                             const dataToCache = { close: closeVal, prev: prevVal, timestamp: now };
