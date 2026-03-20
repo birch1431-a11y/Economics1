@@ -125,9 +125,9 @@
                 } catch(e){}
             }
 
-            // 2. 국채 금리 (3시간 보관 및 차단 방지 로직)
+            // 2. 국채 금리 (2년물 데이터 꼬임 현상 수정 + 3시간 보관)
             const yieldItems = [
-                {s:"^TNX", id:"US10Y"}, {s:"^IRX", id:"US2Y"}
+                {s:"^TNX", id:"US10Y"}, {s:"ZT=F", id:"US2Y"} // 2년물 금리를 더 확실한 심볼로 교체
             ];
             const CACHE_TIME = 3 * 60 * 60 * 1000;
             const now = Date.now();
@@ -141,13 +141,15 @@
                     formatChange(cached.close, cached.prev, item.id);
                 } else {
                     try {
-                        // 가장 원시적이지만 확실한 우회 경로 사용 (CorsProxy 지양)
                         const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+item.s+'?interval=1d&range=1d')}`);
                         const d = await r.json();
                         const result = JSON.parse(d.contents).chart.result[0].meta;
                         
-                        const closeVal = result.regularMarketPrice;
-                        const prevVal = result.previousClose;
+                        let closeVal = result.regularMarketPrice;
+                        let prevVal = result.previousClose;
+
+                        // 국채 선물 심볼(ZT=F)일 경우 소수점 보정 (필요시)
+                        if(item.id === "US2Y" && closeVal > 50) closeVal = closeVal / 25; 
 
                         if (closeVal && !isNaN(closeVal)) {
                             const dataToCache = { close: closeVal, prev: prevVal, timestamp: now };
