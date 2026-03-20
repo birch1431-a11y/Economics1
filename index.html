@@ -16,33 +16,9 @@
         .change { font-size: 0.75rem; font-weight: 400; margin-top: 2px; }
         .up { color: #ff4444; } .down { color: #4488ff; }
         .footer-copy { text-align: center; font-size: 0.7rem; color: #555; margin: 40px 0 10px 0; border-top: 1px solid #222; padding-top: 20px; letter-spacing: 0.5px; }
-
-        #notice-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;
-        }
-        .notice-box {
-            background: #1e1e1e; border: 1px solid #c5a059; border-radius: 12px; padding: 20px; max-width: 400px; width: 100%;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5); line-height: 1.6;
-        }
-        .notice-title { color: #c5a059; font-size: 1.1rem; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .notice-content { font-size: 0.9rem; color: #ddd; margin-bottom: 20px; white-space: pre-wrap; word-break: keep-all; }
-        .notice-btn {
-            background: #c5a059; color: #000; border: none; padding: 12px; border-radius: 6px; width: 100%;
-            font-weight: bold; cursor: pointer; font-size: 0.95rem; transition: background 0.3s;
-        }
-        .notice-btn:active { background: #a38448; }
     </style>
 </head>
 <body>
-
-    <div id="notice-overlay">
-        <div class="notice-box">
-            <div class="notice-title">경제 상황판 업데이트 안내</div>
-            <div class="notice-content" id="notice-text"></div>
-            <button class="notice-btn" onclick="closeNotice()">확인했습니다</button>
-        </div>
-    </div>
 
     <div class="header">글로벌 경제 상황판</div>
 
@@ -73,24 +49,11 @@
 
     <script>
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
-        const noticeText = `경제지표들을 가능한 많이 담고 싶었으나 무료 입수에 근본적인 한계가 있습니다.`;
 
-        function handleNotice() {
-            const hasSeenNotice = localStorage.getItem('notice_closed_2026');
-            if (!hasSeenNotice) {
-                document.getElementById('notice-text').innerText = noticeText;
-                document.getElementById('notice-overlay').style.display = 'flex';
-            }
-        }
-
-        function closeNotice() {
-            document.getElementById('notice-overlay').style.display = 'none';
-            localStorage.setItem('notice_closed_2026', 'true');
-        }
-
-        function formatChange(c, p, id) {
-            if(isNaN(c) || isNaN(p)) return;
-            const diff = c - p, pct = (diff/p*100).toFixed(2);
+        function formatChange(curr, prev, id) {
+            if(!curr || !prev || isNaN(curr) || isNaN(prev)) return;
+            const diff = curr - prev;
+            const pct = (diff / prev * 100).toFixed(2);
             const sign = diff > 0 ? "▲" : diff < 0 ? "▼" : "";
             const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
             const cEl = document.getElementById(id + "-c");
@@ -100,9 +63,7 @@
         }
 
         async function init() {
-            handleNotice();
-
-            // 1. 실시간 지표 (기존 로직 유지)
+            // 1. 실시간 지표 (Twelve Data)
             const realTimeItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
@@ -125,15 +86,15 @@
                 } catch(e){}
             }
 
-            // 2. 국채 금리 (2년물 데이터 꼬임 현상 수정 + 3시간 보관)
+            // 2. 국채 금리 (야후 파이낸스 + 3시간 보관 + 증감 표시 보강)
             const yieldItems = [
-                {s:"^TNX", id:"US10Y"}, {s:"ZT=F", id:"US2Y"} // 2년물 금리를 더 확실한 심볼로 교체
+                {s:"^TNX", id:"US10Y"}, {s:"^IRX", id:"US2Y"}
             ];
             const CACHE_TIME = 3 * 60 * 60 * 1000;
             const now = Date.now();
 
             for (const item of yieldItems) {
-                const cacheKey = `yield_cache_${item.id}`;
+                const cacheKey = `yield_v4_${item.id}`; // 버전업하여 캐시 강제 갱신
                 const cached = JSON.parse(localStorage.getItem(cacheKey));
 
                 if (cached && (now - cached.timestamp < CACHE_TIME)) {
@@ -148,12 +109,11 @@
                         let closeVal = result.regularMarketPrice;
                         let prevVal = result.previousClose;
 
-                        // 국채 선물 심볼(ZT=F)일 경우 소수점 보정 (필요시)
-                        if(item.id === "US2Y" && closeVal > 50) closeVal = closeVal / 25; 
+                        if(item.id === "US2Y" && closeVal > 10) closeVal = closeVal / 10;
+                        if(item.id === "US2Y" && prevVal > 10) prevVal = prevVal / 10;
 
                         if (closeVal && !isNaN(closeVal)) {
-                            const dataToCache = { close: closeVal, prev: prevVal, timestamp: now };
-                            localStorage.setItem(cacheKey, JSON.stringify(dataToCache));
+                            localStorage.setItem(cacheKey, JSON.stringify({ close: closeVal, prev: prevVal, timestamp: now }));
                             document.getElementById(item.id).innerText = closeVal.toFixed(2);
                             formatChange(closeVal, prevVal, item.id);
                         }
