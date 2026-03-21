@@ -52,8 +52,8 @@
 
         function formatChange(curr, prev, id) {
             if(!curr || isNaN(curr)) return;
-            // 전일 종가가 없으면 0.1% 정도의 임의 변동을 가정해 화살표를 강제로 생성 (임시 방편)
-            let p = (prev && !isNaN(prev)) ? prev : curr * 0.999; 
+            // 전일 종가가 없으면 0.1% 임의 변동으로 화살표 강제 생성
+            const p = (prev && !isNaN(prev) && prev !== 0) ? prev : curr * 0.999; 
             const diff = curr - p;
             const pct = (diff / p * 100).toFixed(2);
             const sign = diff >= 0 ? "▲" : "▼";
@@ -65,60 +65,56 @@
         }
 
         async function init() {
-            // 1. 일반 지표 (Twelve Data)
-            const realTimeItems = [
+            // 모든 지표 리스트 (국채 포함)
+            const allItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
-                {s:"XAU/USD", id:"GOLD"}
+                {s:"XAU/USD", id:"GOLD"},
+                {s:"TNX", id:"US10Y"}, {s:"IRX", id:"US2Y"} // 국채를 Twelve Data 직접 심볼로 변경
             ];
 
-            for (const item of realTimeItems) {
+            const CACHE_TIME = 3 * 60 * 60 * 1000;
+            const now = Date.now();
+
+            for (const item of allItems) {
+                const isYield = (item.id === "US10Y" || item.id === "US2Y");
+                const cacheKey = `data_vUltra_${item.id}`;
+                const cached = JSON.parse(localStorage.getItem(cacheKey));
+
+                // 국채만 3시간 보관 적용
+                if (isYield && cached && (now - cached.timestamp < CACHE_TIME)) {
+                    document.getElementById(item.id).innerText = cached.close.toFixed(2);
+                    formatChange(cached.close, cached.prev, item.id);
+                    continue;
+                }
+
                 try {
                     const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
                     const d = await r.json();
+                    
                     if(d && d.close){
-                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        document.getElementById(item.id).innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                        let c = parseFloat(d.close);
+                        let p = parseFloat(d.previous_close);
+
+                        // Twelve Data 지수 수치 보정 (10년물/2년물 4.38 형태로 출력)
+                        if(isYield && c > 10) c /= 10;
+                        if(isYield && p > 10) p /= 10;
+
+                        document.getElementById(item.id).innerText = isYield ? c.toFixed(2) : c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                         formatChange(c, p, item.id);
-                    }
-                } catch(e){}
-            }
 
-            // 2. 국채 금리 (화살표 강제 생성 로직 적용)
-            const yieldItems = [{s:"^TNX", id:"US10Y"}, {s:"^IRX", id:"US2Y"}];
-            const CACHE_TIME = 3 * 60 * 60 * 1000;
-
-            for (const item of yieldItems) {
-                const cacheKey = `yield_vFinal_${item.id}`;
-                const cached = JSON.parse(localStorage.getItem(cacheKey));
-                const now = Date.now();
-
-                if (cached && (now - cached.timestamp < CACHE_TIME)) {
-                    document.getElementById(item.id).innerText = cached.close.toFixed(2);
-                    formatChange(cached.close, cached.prev, item.id);
-                } else {
-                    try {
-                        const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+item.s+'?interval=1d&range=1d')}`);
-                        const d = await r.json();
-                        const meta = JSON.parse(d.contents).chart.result[0].meta;
-                        
-                        let c = meta.regularMarketPrice;
-                        let p = meta.previousClose;
-
-                        if(item.id === "US2Y" && c > 10) c /= 10;
-                        if(item.id === "US2Y" && p > 10) p /= 10;
-
-                        if (c) {
+                        if(isYield) {
                             localStorage.setItem(cacheKey, JSON.stringify({ close: c, prev: p, timestamp: now }));
-                            document.getElementById(item.id).innerText = c.toFixed(2);
-                            formatChange(c, p, item.id);
                         }
-                    } catch (e) {
-                        if (cached) {
-                            document.getElementById(item.id).innerText = cached.close.toFixed(2);
-                            formatChange(cached.close, cached.prev, item.id);
-                        }
+                    } else if (isYield && cached) { // 실패시 캐시 사용
+                        document.getElementById(item.id).innerText = cached.close.toFixed(2);
+                        formatChange(cached.close, cached.prev, item.id);
+                    }
+                } catch(e){
+                    if(isYield && cached) {
+                        document.getElementById(item.id).innerText = cached.close.toFixed(2);
+                        formatChange(cached.close, cached.prev, item.id);
                     }
                 }
             }
