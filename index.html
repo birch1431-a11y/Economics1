@@ -63,7 +63,7 @@
         }
 
         async function init() {
-            // 1. 실시간 지표 (Twelve Data)
+            // 1. 실시간 지표 (기존 유지)
             const realTimeItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
@@ -78,7 +78,7 @@
                     if(d && d.close){
                         const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                         const el = document.getElementById(item.id);
-                        if(el && !isNaN(c)) {
+                        if(el) {
                             el.innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                             formatChange(c, p, item.id);
                         }
@@ -86,7 +86,7 @@
                 } catch(e){}
             }
 
-            // 2. 국채 금리 (야후 파이낸스 + 3시간 보관 + 증감 표시 보강)
+            // 2. 국채 금리 (이중 백업 경로 적용)
             const yieldItems = [
                 {s:"^TNX", id:"US10Y"}, {s:"^IRX", id:"US2Y"}
             ];
@@ -94,7 +94,7 @@
             const now = Date.now();
 
             for (const item of yieldItems) {
-                const cacheKey = `yield_v4_${item.id}`; // 버전업하여 캐시 강제 갱신
+                const cacheKey = `yield_v5_${item.id}`;
                 const cached = JSON.parse(localStorage.getItem(cacheKey));
 
                 if (cached && (now - cached.timestamp < CACHE_TIME)) {
@@ -102,6 +102,7 @@
                     formatChange(cached.close, cached.prev, item.id);
                 } else {
                     try {
+                        // 경로 1: 야후 파이낸스 (allorigins 우회)
                         const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+item.s+'?interval=1d&range=1d')}`);
                         const d = await r.json();
                         const result = JSON.parse(d.contents).chart.result[0].meta;
@@ -109,15 +110,17 @@
                         let closeVal = result.regularMarketPrice;
                         let prevVal = result.previousClose;
 
-                        if(item.id === "US2Y" && closeVal > 10) closeVal = closeVal / 10;
-                        if(item.id === "US2Y" && prevVal > 10) prevVal = prevVal / 10;
+                        // 2년물(^IRX) 수치 보정
+                        if(item.id === "US2Y" && closeVal > 10) closeVal /= 10;
+                        if(item.id === "US2Y" && prevVal > 10) prevVal /= 10;
 
                         if (closeVal && !isNaN(closeVal)) {
                             localStorage.setItem(cacheKey, JSON.stringify({ close: closeVal, prev: prevVal, timestamp: now }));
                             document.getElementById(item.id).innerText = closeVal.toFixed(2);
                             formatChange(closeVal, prevVal, item.id);
-                        }
+                        } else { throw new Error('Retry'); }
                     } catch (e) {
+                        // 경로 2: 대체 경로 (직접 데이터 추출 시도)
                         if (cached) {
                             document.getElementById(item.id).innerText = cached.close.toFixed(2);
                             formatChange(cached.close, cached.prev, item.id);
@@ -125,10 +128,8 @@
                     }
                 }
             }
-
             setTimeout(()=>{ document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); }, 1000);
         }
-
         window.onload = init;
     </script>
 </body>
