@@ -64,8 +64,13 @@
             }
         }
 
-        async function fetchTwelveData(item) {
+        // 지연 함수 추가
+        const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+        async function fetchTwelveData(item, index) {
             try {
+                // 각 요청마다 150ms씩 순차적으로 지연을 주어 API 차단을 방지
+                await sleep(index * 150);
                 const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
                 const d = await r.json();
                 if(d && d.close){
@@ -119,7 +124,7 @@
             const yieldItems = [{s:"^TNX", id:"US10Y"}, {s:"^2Y", id:"US2Y"}];
 
             const tasks = [
-                ...realTimeItems.map(item => fetchTwelveData(item)),
+                ...realTimeItems.map((item, index) => fetchTwelveData(item, index)),
                 ...yieldItems.map(item => fetchYieldData(item))
             ];
 
