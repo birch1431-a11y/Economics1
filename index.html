@@ -64,12 +64,10 @@
             }
         }
 
-        // 지연 함수 추가
         const sleep = ms => new Promise(res => setTimeout(res, ms));
 
         async function fetchTwelveData(item, index) {
             try {
-                // 각 요청마다 150ms씩 순차적으로 지연을 주어 API 차단을 방지
                 await sleep(index * 150);
                 const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
                 const d = await r.json();
@@ -81,14 +79,14 @@
             } catch(e){}
         }
 
-        async function fetchYieldData(item) {
-            const cacheKey = `yield_vFinal_${item.id}`;
+        async function fetchExternalData(item) {
+            const cacheKey = `ext_cache_${item.id}`;
             const cached = JSON.parse(localStorage.getItem(cacheKey));
             const now = Date.now();
             const CACHE_TIME = 3 * 60 * 60 * 1000;
 
             if (cached && (now - cached.timestamp < CACHE_TIME)) {
-                document.getElementById(item.id).innerText = cached.close.toFixed(2);
+                document.getElementById(item.id).innerText = cached.close.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                 formatChange(cached.close, cached.prev, item.id);
                 return;
             }
@@ -103,29 +101,35 @@
 
                 if (c) {
                     localStorage.setItem(cacheKey, JSON.stringify({ close: c, prev: p, timestamp: now }));
-                    document.getElementById(item.id).innerText = c.toFixed(2);
+                    document.getElementById(item.id).innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                     formatChange(c, p, item.id);
                 }
             } catch (e) {
                 if (cached) {
-                    document.getElementById(item.id).innerText = cached.close.toFixed(2);
+                    document.getElementById(item.id).innerText = cached.close.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                     formatChange(cached.close, cached.prev, item.id);
                 }
             }
         }
 
         async function init() {
+            // Twelve Data 항목 (은 제외)
             const realTimeItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
-                {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"}
+                {s:"XAU/USD", id:"GOLD"}
             ];
-            const yieldItems = [{s:"^TNX", id:"US10Y"}, {s:"^2Y", id:"US2Y"}];
+            // 야후 파이낸스 항목 (국채 금리 + 은 추가)
+            const externalItems = [
+                {s:"^TNX", id:"US10Y"}, 
+                {s:"^2Y", id:"US2Y"},
+                {s:"SI=F", id:"SILVER"} // 은 선물 티커
+            ];
 
             const tasks = [
                 ...realTimeItems.map((item, index) => fetchTwelveData(item, index)),
-                ...yieldItems.map(item => fetchYieldData(item))
+                ...externalItems.map(item => fetchExternalData(item))
             ];
 
             await Promise.allSettled(tasks);
