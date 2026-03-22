@@ -80,7 +80,8 @@
         }
 
         async function fetchExternalData(item) {
-            const cacheKey = `ext_vFinal_v3_${item.id}`;
+            // 캐시 강제 무시를 위해 최종 키 이름 적용
+            const cacheKey = `ext_vFinal_Final_${item.id}`;
             const cached = JSON.parse(localStorage.getItem(cacheKey));
             const now = Date.now();
             const CACHE_TIME = 3 * 60 * 60 * 1000;
@@ -99,6 +100,7 @@
                 let c = meta.regularMarketPrice;
                 let p = meta.previousClose;
 
+                // 13주물(^IRX) 보정 로직
                 if(item.id === "US2Y" && c > 10) c /= 10;
                 if(item.id === "US2Y" && p > 10) p /= 10;
 
