@@ -63,63 +63,73 @@
             }
         }
 
+        async function fetchTwelveData(item) {
+            try {
+                const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
+                const d = await r.json();
+                if(d && d.close){
+                    const c=parseFloat(d.close), p=parseFloat(d.previous_close);
+                    document.getElementById(item.id).innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+                    formatChange(c, p, item.id);
+                }
+            } catch(e){}
+        }
+
+        async function fetchYieldData(item) {
+            const cacheKey = `yield_vFinal_${item.id}`;
+            const cached = JSON.parse(localStorage.getItem(cacheKey));
+            const now = Date.now();
+            const CACHE_TIME = 3 * 60 * 60 * 1000;
+
+            if (cached && (now - cached.timestamp < CACHE_TIME)) {
+                document.getElementById(item.id).innerText = cached.close.toFixed(2);
+                formatChange(cached.close, cached.prev, item.id);
+                return;
+            }
+
+            try {
+                const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+item.s+'?interval=1d&range=1d')}`);
+                const d = await r.json();
+                const meta = JSON.parse(d.contents).chart.result[0].meta;
+                
+                let c = meta.regularMarketPrice;
+                let p = meta.previousClose;
+
+                if (c) {
+                    localStorage.setItem(cacheKey, JSON.stringify({ close: c, prev: p, timestamp: now }));
+                    document.getElementById(item.id).innerText = c.toFixed(2);
+                    formatChange(c, p, item.id);
+                }
+            } catch (e) {
+                if (cached) {
+                    document.getElementById(item.id).innerText = cached.close.toFixed(2);
+                    formatChange(cached.close, cached.prev, item.id);
+                }
+            }
+        }
+
         async function init() {
-            // 1. 일반 지표 (Twelve Data)
             const realTimeItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
                 {s:"XAU/USD", id:"GOLD"}
             ];
-
-            for (const item of realTimeItems) {
-                try {
-                    const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
-                    const d = await r.json();
-                    if(d && d.close){
-                        const c=parseFloat(d.close), p=parseFloat(d.previous_close);
-                        document.getElementById(item.id).innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
-                        formatChange(c, p, item.id);
-                    }
-                } catch(e){}
-            }
-
-            // 2. 국채 금리 (야후 파이낸스 실시간 티커 적용)
             const yieldItems = [{s:"^TNX", id:"US10Y"}, {s:"^2Y", id:"US2Y"}];
-            const CACHE_TIME = 3 * 60 * 60 * 1000;
 
-            for (const item of yieldItems) {
-                const cacheKey = `yield_vFinal_${item.id}`;
-                const cached = JSON.parse(localStorage.getItem(cacheKey));
-                const now = Date.now();
+            // 모든 요청을 병렬(동시)로 실행
+            const tasks = [
+                ...realTimeItems.map(item => fetchTwelveData(item)),
+                ...yieldItems.map(item => fetchYieldData(item))
+            ];
 
-                if (cached && (now - cached.timestamp < CACHE_TIME)) {
-                    document.getElementById(item.id).innerText = cached.close.toFixed(2);
-                    formatChange(cached.close, cached.prev, item.id);
-                } else {
-                    try {
-                        const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+item.s+'?interval=1d&range=1d')}`);
-                        const d = await r.json();
-                        const meta = JSON.parse(d.contents).chart.result[0].meta;
-                        
-                        let c = meta.regularMarketPrice;
-                        let p = meta.previousClose;
+            await Promise.allSettled(tasks);
 
-                        if (c) {
-                            localStorage.setItem(cacheKey, JSON.stringify({ close: c, prev: p, timestamp: now }));
-                            document.getElementById(item.id).innerText = c.toFixed(2);
-                            formatChange(c, p, item.id);
-                        }
-                    } catch (e) {
-                        if (cached) {
-                            document.getElementById(item.id).innerText = cached.close.toFixed(2);
-                            formatChange(cached.close, cached.prev, item.id);
-                        }
-                    }
-                }
-            }
-            setTimeout(()=>{ document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString(); }, 500);
+            setTimeout(()=>{ 
+                document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString(); 
+            }, 500);
         }
+
         window.onload = init;
     </script>
 </body>
