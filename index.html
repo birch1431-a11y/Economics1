@@ -36,6 +36,7 @@
 
     <div class="category">원자재</div><hr class="hr-short">
     <div class="item-row"><span class="label">금($/oz)</span><div class="val-container"><span class="value" id="GOLD">--</span><div class="change" id="GOLD-c">--</div></div></div>
+    <div class="item-row"><span class="label">은($/oz)</span><div class="val-container"><span class="value" id="SILVER">--</span><div class="change" id="SILVER-c">--</div></div></div>
 
     <div class="category">가상자산</div><hr class="hr-short">
     <div class="item-row"><span class="label">BTC($)</span><div class="val-container"><span class="value" id="BTC">--</span><div class="change" id="BTC-c">--</div></div></div>
@@ -113,11 +114,10 @@
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
-                {s:"XAU/USD", id:"GOLD"}
+                {s:"XAU/USD", id:"GOLD"}, {s:"XAG/USD", id:"SILVER"}
             ];
             const yieldItems = [{s:"^TNX", id:"US10Y"}, {s:"^2Y", id:"US2Y"}];
 
-            // 모든 요청을 병렬(동시)로 실행
             const tasks = [
                 ...realTimeItems.map(item => fetchTwelveData(item)),
                 ...yieldItems.map(item => fetchYieldData(item))
