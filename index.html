@@ -32,7 +32,7 @@
 
     <div class="category">미국 국채 금리</div><hr class="hr-short">
     <div class="item-row"><span class="label">10Y Yield</span><div class="val-container"><span class="value" id="US10Y">--</span><div class="change" id="US10Y-c">--</div></div></div>
-    <div class="item-row"><span class="label">2Y Yield</span><div class="val-container"><span class="value" id="US2Y">--</span><div class="change" id="US2Y-c">--</div></div></div>
+    <div class="item-row"><span class="label">13W Yield</span><div class="val-container"><span class="value" id="US2Y">--</span><div class="change" id="US2Y-c">--</div></div></div>
 
     <div class="category">원자재</div><hr class="hr-short">
     <div class="item-row"><span class="label">금($/oz)</span><div class="val-container"><span class="value" id="GOLD">--</span><div class="change" id="GOLD-c">--</div></div></div>
@@ -80,7 +80,8 @@
         }
 
         async function fetchExternalData(item) {
-            const cacheKey = `ext_cache_${item.id}`;
+            // 캐시 충돌 방지를 위해 키 이름을 새롭게 정의(vRefreshed)
+            const cacheKey = `ext_vRefreshed_${item.id}`;
             const cached = JSON.parse(localStorage.getItem(cacheKey));
             const now = Date.now();
             const CACHE_TIME = 3 * 60 * 60 * 1000;
@@ -99,7 +100,7 @@
                 let c = meta.regularMarketPrice;
                 let p = meta.previousClose;
 
-                // 13주물(^IRX) 등 값이 10배로 들어오는 지표 보정
+                // 13주물(^IRX) 값 보정
                 if(item.id === "US2Y" && c > 10) c /= 10;
                 if(item.id === "US2Y" && p > 10) p /= 10;
 
@@ -125,7 +126,7 @@
             ];
             const externalItems = [
                 {s:"^TNX", id:"US10Y"}, 
-                {s:"^IRX", id:"US2Y"}, // 13주물로 복구하여 안정성 확보
+                {s:"^IRX", id:"US2Y"}, 
                 {s:"SI=F", id:"SILVER"}
             ];
 
