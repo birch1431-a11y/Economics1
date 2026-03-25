@@ -80,11 +80,11 @@
         }
 
         async function fetchExternalData(item) {
-            // 캐시 강제 무시를 위해 최종 키 이름 적용
-            const cacheKey = `ext_vFinal_Final_${item.id}`;
+            // 지인들의 기기에서도 강제 갱신되도록 캐시 키를 일원화 및 업데이트
+            const cacheKey = `global_macro_v2026_${item.id}`;
             const cached = JSON.parse(localStorage.getItem(cacheKey));
             const now = Date.now();
-            const CACHE_TIME = 3 * 60 * 60 * 1000;
+            const CACHE_TIME = 1 * 60 * 60 * 1000; // 1시간 주기로 변경하여 실시간성 강화
 
             if (cached && (now - cached.timestamp < CACHE_TIME)) {
                 document.getElementById(item.id).innerText = cached.close.toFixed(2);
@@ -93,14 +93,16 @@
             }
 
             try {
-                const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+item.s+'?interval=1d&range=1d')}`);
+                // 프록시 서버 캐시 방지를 위해 URL에 난수(?nocache=...) 추가
+                const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${item.s}?interval=1d&range=1d&_=${now}`;
+                const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
                 const d = await r.json();
                 const meta = JSON.parse(d.contents).chart.result[0].meta;
                 
                 let c = meta.regularMarketPrice;
                 let p = meta.previousClose;
 
-                // 13주물(^IRX) 보정 로직
+                // 13주물(^IRX) 데이터 보정 로직 유지
                 if(item.id === "US2Y" && c > 10) c /= 10;
                 if(item.id === "US2Y" && p > 10) p /= 10;
 
@@ -118,24 +120,26 @@
         }
 
         async function init() {
+            // 야후에서 가져오는 항목 (국채 금리, 은)
+            const externalItems = [
+                {s:"^IRX", id:"US2Y"}, // 13W를 가장 먼저 호출하여 지연 최소화
+                {s:"^TNX", id:"US10Y"}, 
+                {s:"SI=F", id:"SILVER"}
+            ];
+
+            // Twelve Data 항목
             const realTimeItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
                 {s:"BTC/USD", id:"BTC"}, {s:"ETH/USD", id:"ETH"},
                 {s:"XAU/USD", id:"GOLD"}
             ];
-            const externalItems = [
-                {s:"^TNX", id:"US10Y"}, 
-                {s:"^IRX", id:"US2Y"}, 
-                {s:"SI=F", id:"SILVER"}
-            ];
 
-            const tasks = [
-                ...realTimeItems.map((item, index) => fetchTwelveData(item, index)),
-                ...externalItems.map(item => fetchExternalData(item))
-            ];
+            // 국채 금리를 먼저 독립적으로 실행
+            const extTasks = externalItems.map(item => fetchExternalData(item));
+            const rtTasks = realTimeItems.map((item, index) => fetchTwelveData(item, index));
 
-            await Promise.allSettled(tasks);
+            await Promise.allSettled([...extTasks, ...rtTasks]);
 
             setTimeout(()=>{ 
                 document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString(); 
