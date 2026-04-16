@@ -52,10 +52,10 @@
         const MY_API_KEY = "7142915ec1dc45caad56dfc9fcf07341";
 
         function formatChange(curr, prev, id) {
-            if(!curr || isNaN(curr)) return;
-            let p = (prev && !isNaN(prev)) ? prev : curr * 0.999; 
-            const diff = curr - p;
-            const pct = (diff / p * 100).toFixed(2);
+            if(!curr || isNaN(curr) || !prev || isNaN(prev)) return;
+            
+            const diff = curr - prev;
+            const pct = (diff / prev * 100).toFixed(2);
             const sign = diff >= 0 ? "▲" : "▼";
             const cls = diff >= 0 ? "up" : "down";
             const cEl = document.getElementById(id + "-c");
@@ -69,7 +69,7 @@
         async function fetchTwelveData(item, index) {
             try {
                 await sleep(index * 150);
-                const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
+                const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}&_=${Date.now()}`);
                 const d = await r.json();
                 if(d && d.close){
                     const c=parseFloat(d.close), p=parseFloat(d.previous_close);
@@ -80,29 +80,23 @@
         }
 
         async function fetchExternalData(item) {
-            // 지인들의 기기에서도 강제 갱신되도록 캐시 키를 일원화 및 업데이트
             const cacheKey = `global_macro_v2026_${item.id}`;
             const cached = JSON.parse(localStorage.getItem(cacheKey));
             const now = Date.now();
-            const CACHE_TIME = 1 * 60 * 60 * 1000; // 1시간 주기로 변경하여 실시간성 강화
-
-            if (cached && (now - cached.timestamp < CACHE_TIME)) {
-                document.getElementById(item.id).innerText = cached.close.toFixed(2);
-                formatChange(cached.close, cached.prev, item.id);
-                return;
-            }
+            const CACHE_TIME = 30 * 60 * 1000; // 30분으로 단축하여 갱신 주기 강화
 
             try {
-                // 프록시 서버 캐시 방지를 위해 URL에 난수(?nocache=...) 추가
-                const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${item.s}?interval=1d&range=1d&_=${now}`;
+                // 강력한 캐시 우회 (랜덤 파라미터 추가)
+                const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${item.s}?interval=1d&range=5d&_=${now}`;
                 const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
                 const d = await r.json();
-                const meta = JSON.parse(d.contents).chart.result[0].meta;
+                const result = JSON.parse(d.contents).chart.result[0];
+                const meta = result.meta;
                 
                 let c = meta.regularMarketPrice;
                 let p = meta.previousClose;
 
-                // 13주물(^IRX) 데이터 보정 로직 유지
+                // IRX 데이터 보정
                 if(item.id === "US2Y" && c > 10) c /= 10;
                 if(item.id === "US2Y" && p > 10) p /= 10;
 
@@ -120,14 +114,12 @@
         }
 
         async function init() {
-            // 야후에서 가져오는 항목 (국채 금리, 은)
             const externalItems = [
-                {s:"^IRX", id:"US2Y"}, // 13W를 가장 먼저 호출하여 지연 최소화
+                {s:"^IRX", id:"US2Y"},
                 {s:"^TNX", id:"US10Y"}, 
                 {s:"SI=F", id:"SILVER"}
             ];
 
-            // Twelve Data 항목
             const realTimeItems = [
                 {s:"USD/KRW", id:"USD/KRW"}, {s:"JPY/KRW", id:"JPY/KRW"}, 
                 {s:"SPY", id:"SP500"}, {s:"EWY", id:"KOSPI"}, {s:"VXX", id:"VIX"},
@@ -135,14 +127,13 @@
                 {s:"XAU/USD", id:"GOLD"}
             ];
 
-            // 국채 금리를 먼저 독립적으로 실행
             const extTasks = externalItems.map(item => fetchExternalData(item));
             const rtTasks = realTimeItems.map((item, index) => fetchTwelveData(item, index));
 
             await Promise.allSettled([...extTasks, ...rtTasks]);
 
             setTimeout(()=>{ 
-                document.getElementById('status-msg').innerText = "업데이트 완료: " + new Date().toLocaleTimeString(); 
+                document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); 
             }, 500);
         }
 
