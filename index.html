@@ -67,6 +67,7 @@
 
         async function fetchTwelveData(item, index) {
             try {
+                // 인덱스별 지연을 주되, 데이터를 받는 즉시 화면 갱신
                 await sleep(index * 150);
                 const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}&_=${Date.now()}`);
                 const d = await r.json();
@@ -82,14 +83,11 @@
             const cacheKey = `global_macro_v2026_${item.id}`;
             const cached = JSON.parse(localStorage.getItem(cacheKey));
             const now = Date.now();
-            const CACHE_TIME = 60 * 60 * 1000; // 1시간 캐시
+            const CACHE_TIME = 60 * 60 * 1000;
 
-            // [핵심] 캐시가 있다면 서버 요청 전에 화면에 즉시 표시
             if (cached) {
                 document.getElementById(item.id).innerText = cached.close.toFixed(2);
                 formatChange(cached.close, cached.prev, item.id);
-                
-                // 1시간이 지나지 않았으면 서버 요청을 하지 않고 종료 (야후 차단 방지)
                 if (now - cached.timestamp < CACHE_TIME) return;
             }
 
@@ -120,9 +118,7 @@
 
         async function init() {
             const externalItems = [
-                {s:"^IRX", id:"US2Y"},
-                {s:"^TNX", id:"US10Y"}, 
-                {s:"SI=F", id:"SILVER"}
+                {s:"^IRX", id:"US2Y"}, {s:"^TNX", id:"US10Y"}, {s:"SI=F", id:"SILVER"}
             ];
 
             const realTimeItems = [
@@ -132,17 +128,16 @@
                 {s:"XAU/USD", id:"GOLD"}
             ];
 
-            // 야후 데이터(국채/은)는 캐시를 즉시 띄우기 위해 개별 실행
+            // 야후 데이터 즉시 실행
             externalItems.forEach(item => fetchExternalData(item));
             
-            // Twelve Data는 순차 실행
-            const rtTasks = realTimeItems.map((item, index) => fetchTwelveData(item, index));
+            // 트웰브데이터도 await 없이 병렬로 즉시 실행하여 하나씩 뜨게 함
+            realTimeItems.forEach((item, index) => fetchTwelveData(item, index));
 
-            await Promise.allSettled(rtTasks);
-
-            setTimeout(()=>{ 
-                document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); 
-            }, 500);
+            // 상태 메시지는 별도로 업데이트
+            setTimeout(() => {
+                document.getElementById('status-msg').innerText = "데이터 업데이트 중...";
+            }, 100);
         }
 
         window.onload = init;
