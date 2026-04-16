@@ -80,11 +80,20 @@
 
         async function fetchExternalData(item) {
             const cacheKey = `global_macro_v2026_${item.id}`;
-            const now = Date.now();
             const cached = JSON.parse(localStorage.getItem(cacheKey));
+            const now = Date.now();
+            const CACHE_TIME = 60 * 60 * 1000; // 1시간 캐시
+
+            // [핵심] 캐시가 있다면 서버 요청 전에 화면에 즉시 표시
+            if (cached) {
+                document.getElementById(item.id).innerText = cached.close.toFixed(2);
+                formatChange(cached.close, cached.prev, item.id);
+                
+                // 1시간이 지나지 않았으면 서버 요청을 하지 않고 종료 (야후 차단 방지)
+                if (now - cached.timestamp < CACHE_TIME) return;
+            }
 
             try {
-                // 야후 캐시 방지를 위해 랜덤 파라미터 강화
                 const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${item.s}?interval=1d&range=5d&_=${now}`;
                 const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
                 const d = await r.json();
@@ -93,32 +102,20 @@
                 let c = resObj.meta.regularMarketPrice;
                 let p = resObj.meta.previousClose;
 
-                // 종가 누락 시 차트 데이터에서 유효한 이전 값 찾기
                 if(!p && resObj.indicators.quote[0].close) {
                     const validCloses = resObj.indicators.quote[0].close.filter(v => v !== null);
                     if(validCloses.length >= 2) p = validCloses[validCloses.length - 2];
                 }
 
-                // 금리 수치 보정
                 if(item.id === "US2Y" && c > 10) c /= 10;
                 if(item.id === "US2Y" && p > 10) p /= 10;
 
-                // 핵심: 현재가와 이전가가 모두 확실할 때만 화면 갱신 및 캐시 저장
                 if (c && p && !isNaN(c) && !isNaN(p)) {
                     localStorage.setItem(cacheKey, JSON.stringify({ close: c, prev: p, timestamp: now }));
                     document.getElementById(item.id).innerText = c.toFixed(2);
                     formatChange(c, p, item.id);
-                } else if (cached) {
-                    // 데이터가 불완전하면 기존 캐시 유지
-                    document.getElementById(item.id).innerText = cached.close.toFixed(2);
-                    formatChange(cached.close, cached.prev, item.id);
                 }
-            } catch (e) {
-                if (cached) {
-                    document.getElementById(item.id).innerText = cached.close.toFixed(2);
-                    formatChange(cached.close, cached.prev, item.id);
-                }
-            }
+            } catch (e) {}
         }
 
         async function init() {
@@ -135,10 +132,13 @@
                 {s:"XAU/USD", id:"GOLD"}
             ];
 
-            const extTasks = externalItems.map(item => fetchExternalData(item));
+            // 야후 데이터(국채/은)는 캐시를 즉시 띄우기 위해 개별 실행
+            externalItems.forEach(item => fetchExternalData(item));
+            
+            // Twelve Data는 순차 실행
             const rtTasks = realTimeItems.map((item, index) => fetchTwelveData(item, index));
 
-            await Promise.allSettled([...extTasks, ...rtTasks]);
+            await Promise.allSettled(rtTasks);
 
             setTimeout(()=>{ 
                 document.getElementById('status-msg').innerText = "최종 업데이트: " + new Date().toLocaleTimeString(); 
