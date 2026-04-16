@@ -68,9 +68,9 @@
         async function fetchTwelveData(item, index) {
             try {
                 await sleep(index * 150);
-                const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}`);
+                const r = await fetch(`https://api.twelvedata.com/quote?symbol=${item.s}&apikey=${MY_API_KEY}&_=${Date.now()}`);
                 const d = await r.json();
-                if(d && d.close){
+                if(d && d.close && d.previous_close){
                     const c=parseFloat(d.close), p=parseFloat(d.previous_close);
                     document.getElementById(item.id).innerText = c.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
                     formatChange(c, p, item.id);
@@ -81,35 +81,39 @@
         async function fetchExternalData(item) {
             const cacheKey = `global_macro_v2026_${item.id}`;
             const now = Date.now();
+            const cached = JSON.parse(localStorage.getItem(cacheKey));
 
             try {
-                // 야후에서 데이터 갱신 누락 시 차트 데이터(range=5d)에서 직전 종가를 찾아내는 로직 추가
+                // 야후 캐시 방지를 위해 랜덤 파라미터 강화
                 const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${item.s}?interval=1d&range=5d&_=${now}`;
                 const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
                 const d = await r.json();
-                const result = JSON.parse(d.contents).chart.result[0];
+                const resObj = JSON.parse(d.contents).chart.result[0];
                 
-                let c = result.meta.regularMarketPrice;
-                let p = result.meta.previousClose;
+                let c = resObj.meta.regularMarketPrice;
+                let p = resObj.meta.previousClose;
 
-                // 금리 수치 보정 (기존 로직 유지)
+                // 종가 누락 시 차트 데이터에서 유효한 이전 값 찾기
+                if(!p && resObj.indicators.quote[0].close) {
+                    const validCloses = resObj.indicators.quote[0].close.filter(v => v !== null);
+                    if(validCloses.length >= 2) p = validCloses[validCloses.length - 2];
+                }
+
+                // 금리 수치 보정
                 if(item.id === "US2Y" && c > 10) c /= 10;
                 if(item.id === "US2Y" && p > 10) p /= 10;
 
-                // 종가(p)가 없을 경우 차트 배열에서 추출 (안전장치)
-                if(!p && result.indicators.quote[0].close) {
-                    const closeArr = result.indicators.quote[0].close.filter(v => v !== null);
-                    if(closeArr.length >= 2) p = closeArr[closeArr.length - 2];
-                }
-
-                if (c) {
+                // 핵심: 현재가와 이전가가 모두 확실할 때만 화면 갱신 및 캐시 저장
+                if (c && p && !isNaN(c) && !isNaN(p)) {
                     localStorage.setItem(cacheKey, JSON.stringify({ close: c, prev: p, timestamp: now }));
-                    // 은(SILVER)을 포함하여 모든 수치를 기존처럼 소수점 2자리로 표시
                     document.getElementById(item.id).innerText = c.toFixed(2);
                     formatChange(c, p, item.id);
+                } else if (cached) {
+                    // 데이터가 불완전하면 기존 캐시 유지
+                    document.getElementById(item.id).innerText = cached.close.toFixed(2);
+                    formatChange(cached.close, cached.prev, item.id);
                 }
             } catch (e) {
-                const cached = JSON.parse(localStorage.getItem(cacheKey));
                 if (cached) {
                     document.getElementById(item.id).innerText = cached.close.toFixed(2);
                     formatChange(cached.close, cached.prev, item.id);
